@@ -79,11 +79,19 @@ public class DIANReenvio {
            /*Factura pos = new Factura();
             pos.setLocationRelativeTo(null); // Centra la ventana
             pos.setVisible(true);
-            
              */
-            Enviador login = new Enviador();
+            
+          Enviador login = new Enviador();
             login.setLocationRelativeTo(null); // Centra la ventana
             login.setVisible(true);
+          
+           
+             /* Enviador Procesador login = new Procesador();
+            login.setLocationRelativeTo(null); // Centra la ventana
+            login.setVisible(true); 
+             */
+            
+            
 
             /*
             Facturacion pos = new Facturacion(0, "", "", "", 1);

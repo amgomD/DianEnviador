@@ -27,7 +27,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Timer;
+import javax.swing.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,6 +39,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
+import javax.swing.JDialog;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
@@ -54,8 +55,12 @@ public class Enviador extends javax.swing.JFrame {
      * Creates new form Enviador
      */
     boolean xdetener = false;
-    TimerTask tarea = null;
-    Timer timer = new Timer(true); // hilo daemon
+    ScheduledExecutorService scheduler;
+    ScheduledExecutorService schedulerDialog;
+    ScheduledExecutorService schedulerDialogenvcor;
+    boolean ejecutando = false;
+    JDialog dialogProceso;
+    JDialog dialogProcesocor;
     private volatile boolean detenido = false;
     ServerMantisSQL Con = new ServerMantisSQL();
     DefaultTableModel modelFactura = null;
@@ -74,10 +79,13 @@ public class Enviador extends javax.swing.JFrame {
 
         modelFactura = (DefaultTableModel) TablaFactura.getModel();
         seltodos.setSelected(false);
-        CargarFacturas();
+        // CargarFacturas();
         if (seltodos.isSelected()) {
             auto();
         }
+        
+        iniciarDialogTimer();
+        iniciarDialogcorTimer();
 
     }
 
@@ -164,43 +172,7 @@ public class Enviador extends javax.swing.JFrame {
                 "c.ComFecCre"
         );
 
-        //and ( comenvcode IS NULL OR comenvcode = '' OR comenvcode = '500')  
-        //and ( facenvcode IS NULL OR facenvcode = '' OR facenvcode = '500') 
-        /* String sql = """
-SELECT 
-    f.FacSec        AS Sec,
-    f.FacFec        AS Fecha,
-    f.FacNro        AS Numero,
-    n.NitIde        AS Nit,
-    cli.CliNom      AS Cliente,
-    f.FacEleStatus  AS Estado
-FROM factura f
-LEFT JOIN tipos t  ON f.factipcod = t.tipcod
-left join facturaenvio e on e.facsec = f.facsec                     
-LEFT JOIN clientes cli ON f.FacNitSec = cli.NitSec AND f.FacCliSec = cli.CliSec
-LEFT JOIN Nit n ON f.FacNitSec = n.NitSec
-WHERE FacEst = 'A' and (f.FacEleStatus IS NULL OR f.FacEleStatus = '' OR f.FacEleStatus = 'K') 
-""" + whereFacturaFinal + """
 
-UNION ALL
-
-SELECT 
-    c.ComSec        AS Sec,
-    c.ComFecEnc     AS Fecha,
-    c.ComNum        AS Numero,
-    n.NitIde        AS Nit,
-    cli.CliNom      AS Cliente,
-    c.ComEleStatus  AS Estado
-FROM Comprobante c
-LEFT JOIN tipos t  ON c.ComTipCod = t.tipcod
-left join ComprobanteEnvio e on e.comsec = c.comsec
-LEFT JOIN clientes cli ON c.ComNitSec = cli.NitSec AND c.ComCliSec = cli.CliSec
-LEFT JOIN Nit n ON c.ComNitSec = n.NitSec
-WHERE LTRIM(RTRIM(comnum)) <> '' and c.comsec NOT LIKE '[0-9]%' and  ComEst = 'A' and (c.ComEleStatus IS NULL OR c.ComEleStatus = '' OR c.ComEleStatus = 'K') 
-""" + whereComprobanteFinal + """
-
-ORDER BY Fecha DESC
-""";*/
         String sql
                 = "SELECT DISTINCT "
                 + "    f.FacSec AS Sec, "
@@ -208,23 +180,43 @@ ORDER BY Fecha DESC
                 + "    f.FacNro AS Numero, "
                 + "    n.NitIde AS Nit, "
                 + "    cli.CliNom AS Cliente, "
-                + "    f.FacEleStatus AS Estado "
-                + "FROM factura f "
+                + "    f.FacEleStatus AS Estado,"
+                + " (select sum(Facval) from facturapago p where p.facsec = f.facsec) as pago, "
+                + " (select sum(Karvaltotmendes) from facturakardex k where k.facsec = f.facsec) as Total "
+                + " FROM factura f  WITH (NOLOCK) "
                 + "LEFT JOIN tipos t ON f.factipcod = t.tipcod "
-                + "LEFT JOIN facturaenvio e ON e.facsec = f.facsec "
-                + "LEFT JOIN clientes cli "
+                + "LEFT JOIN facturaenvio e ON e.facsec = f.facsec  "
+                + "LEFT JOIN clientes cli   "
                 + "       ON f.FacNitSec = cli.NitSec "
                 + "      AND f.FacCliSec = cli.CliSec "
-                + "LEFT JOIN Nit n ON f.FacNitSec = n.NitSec "
-                + "WHERE ( "
-                + "        (e.facenvresp LIKE '%" + eError.getText() + "%') "
-                + "     OR (e.facenvresp IS NULL) "
-                + ") "
-                + "AND f.FacEst = 'A' "
-                + "AND (f.FacEleStatus IS NULL OR f.FacEleStatus = '' OR f.FacEleStatus = 'K') "
-                + whereFacturaFinal + " "
+                + "LEFT JOIN Nit n ON f.FacNitSec = n.NitSec   "
+                + "WHERE f.FacEst = 'A'  "
+                + " ";
+
+        if (sinArticulo.isSelected()) {
+            sql
+                    += "   AND NOT EXISTS (\n"
+                    + "        SELECT 1\n"
+                    + "        FROM facturakardex fk\n"
+                    + "        WHERE fk.FacSec = f.FacSec\n"
+                    + "  ) ";
+        }
+
+        if (ErrorCorreo.isSelected()) {
+            sql
+                    += " AND Nitide like '%" + NitIde.getText() + "%'  AND "
+                    + "(CliCorEle  LIKE '%_@_%._%' and  CliCorEle NOT LIKE '% %' ) and  f.FacEleStatus = 'S' and  "
+                    + " (f.FacEleEnvCor = 'K' or f.FacEleEnvCor = 'X' or f.FacEleEnvCor = '' or f.FacEleEnvCor is null) ";
+        } else {
+            sql
+                    += " AND Nitide like '%" + NitIde.getText() + "%' AND  ( "
+                    + "        (e.facenvresp LIKE '%" + eError.getText() + "%') "
+                    + "     OR (e.facenvresp IS NULL) "
+                    + ") AND (f.FacEleStatus IS NULL OR f.FacEleStatus = '' OR f.FacEleStatus = 'K'  ) ";
+        }
+        sql += whereFacturaFinal + " "
                 + "ORDER BY Fecha DESC";
-                /*+ "UNION ALL "
+        /*+ "UNION ALL "
                 + "SELECT DISTINCT "
                 + "    c.ComSec AS Sec, "
                 + "    c.ComFecCre AS Fecha, "
@@ -245,7 +237,6 @@ ORDER BY Fecha DESC
                 + "AND c.ComEst = 'A' "
                 + "AND (c.ComEleStatus IS NULL OR c.ComEleStatus = '' OR c.ComEleStatus = 'K') "
                 + whereComprobanteFinal + " "*/
-                
 
         System.out.println(sql);
 
@@ -260,11 +251,10 @@ ORDER BY Fecha DESC
             }
 
             ResultSet rs = ps.executeQuery();
-
+            int contador = 0;
             boolean sel = false;
 
             while (rs.next()) {
-
                 if (selsinerrores.isSelected()) {
                     if (rs.getString("Estado").contains("K")) {
                         sel = false;
@@ -275,17 +265,57 @@ ORDER BY Fecha DESC
                     sel = seltodos.isSelected();
                 }
 
-                modelFactura.addRow(new Object[]{
-                    rs.getString("Sec"),
-                    sel, // checkbox
-                    rs.getDate("Fecha"),
-                    rs.getString("Numero"),
-                    rs.getString("Nit"),
-                    rs.getString("Cliente"),
-                    rs.getString("Estado")
-                });
-            }
+                if (sinpago.isSelected()) {
+                    if (rs.getDouble("pago") < 1) {
+                        contador += 1;
+                        modelFactura.addRow(new Object[]{
+                            rs.getString("Sec"),
+                            sel, // checkbox
+                            rs.getDate("Fecha"),
+                            rs.getString("Numero"),
+                            rs.getString("Nit"),
+                            rs.getString("Cliente"),
+                            rs.getString("Estado"),
+                            rs.getDouble("pago"),
+                            rs.getDouble("Total")
+                        });
+                    }
 
+                } else {
+                    if (conpago.isSelected()) {
+                        if (rs.getDouble("pago") > 0) {
+                            contador += 1;
+                            modelFactura.addRow(new Object[]{
+                                rs.getString("Sec"),
+                                sel, // checkbox
+                                rs.getDate("Fecha"),
+                                rs.getString("Numero"),
+                                rs.getString("Nit"),
+                                rs.getString("Cliente"),
+                                rs.getString("Estado"),
+                                rs.getDouble("pago"),
+                                rs.getDouble("Total")
+                            });
+                        }
+                    } else {
+                        contador += 1;
+                        modelFactura.addRow(new Object[]{
+                            rs.getString("Sec"),
+                            sel, // checkbox
+                            rs.getDate("Fecha"),
+                            rs.getString("Numero"),
+                            rs.getString("Nit"),
+                            rs.getString("Cliente"),
+                            rs.getString("Estado"),
+                            rs.getDouble("pago"),
+                            rs.getDouble("Total")
+                        });
+                    }
+
+                }
+
+            }
+            titulo.setText(String.valueOf(contador));
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
@@ -302,7 +332,7 @@ ORDER BY Fecha DESC
     private void initComponents() {
 
         jPanel1 = new javax.swing.JPanel();
-        jLabel1 = new javax.swing.JLabel();
+        titulo = new javax.swing.JLabel();
         jPanel2 = new javax.swing.JPanel();
         jLabel2 = new javax.swing.JLabel();
         iFacFec = new com.toedter.calendar.JDateChooser();
@@ -314,26 +344,34 @@ ORDER BY Fecha DESC
         eFacNro = new javax.swing.JTextField();
         enviar = new javax.swing.JButton();
         seltodos = new javax.swing.JCheckBox();
-        Auto = new javax.swing.JButton();
-        detener = new javax.swing.JButton();
         selsinerrores = new javax.swing.JCheckBox();
         eError = new javax.swing.JTextField();
         jLabel6 = new javax.swing.JLabel();
         Filtrar = new javax.swing.JButton();
         EvioAsincrono = new javax.swing.JButton();
+        ErrorCorreo = new javax.swing.JCheckBox();
+        sinpago = new javax.swing.JCheckBox();
+        conpago = new javax.swing.JCheckBox();
+        NitIde = new javax.swing.JTextField();
+        jLabel7 = new javax.swing.JLabel();
+        sinArticulo = new javax.swing.JCheckBox();
+        EnvioCorreo = new javax.swing.JTextField();
+        autoboton = new javax.swing.JToggleButton();
         jScrollPane1 = new javax.swing.JScrollPane();
         TablaFactura = new javax.swing.JTable();
         configuracion = new javax.swing.JLabel();
         jScrollPane2 = new javax.swing.JScrollPane();
         TXTresponse = new javax.swing.JTextArea();
         nroFac = new javax.swing.JLabel();
+        configuracion1 = new javax.swing.JLabel();
+        enviocorreo = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
         jPanel1.setBackground(new java.awt.Color(255, 255, 255));
 
-        jLabel1.setFont(new java.awt.Font("Dialog", 0, 24)); // NOI18N
-        jLabel1.setText("Envio facturas");
+        titulo.setFont(new java.awt.Font("Dialog", 0, 24)); // NOI18N
+        titulo.setText("Envio facturas");
 
         jPanel2.setBackground(new java.awt.Color(246, 250, 255));
 
@@ -365,22 +403,6 @@ ORDER BY Fecha DESC
             }
         });
 
-        Auto.setBackground(new java.awt.Color(255, 0, 0));
-        Auto.setForeground(new java.awt.Color(255, 255, 255));
-        Auto.setText("Auto");
-        Auto.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                AutoActionPerformed(evt);
-            }
-        });
-
-        detener.setText("Detener");
-        detener.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                detenerActionPerformed(evt);
-            }
-        });
-
         selsinerrores.setText("Sel.SinErrores");
         selsinerrores.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -404,75 +426,142 @@ ORDER BY Fecha DESC
             }
         });
 
+        ErrorCorreo.setText("etrroc");
+        ErrorCorreo.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                ErrorCorreoActionPerformed(evt);
+            }
+        });
+
+        sinpago.setText("sinformapago");
+        sinpago.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                sinpagoActionPerformed(evt);
+            }
+        });
+
+        conpago.setText("conformapago");
+        conpago.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                conpagoActionPerformed(evt);
+            }
+        });
+
+        jLabel7.setText("Cliente");
+
+        sinArticulo.setText("SinArticulo");
+        sinArticulo.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                sinArticuloActionPerformed(evt);
+            }
+        });
+
+        autoboton.setText("Auto");
+        autoboton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                autobotonActionPerformed(evt);
+            }
+        });
+
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
         jPanel2Layout.setHorizontalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel2Layout.createSequentialGroup()
-                .addContainerGap()
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(iFacFec, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel2))
+                    .addGroup(jPanel2Layout.createSequentialGroup()
+                        .addContainerGap()
+                        .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(iFacFec, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(jLabel2))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jLabel3)
+                            .addComponent(fFacFec, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jLabel5)
+                            .addComponent(eTipEle, javax.swing.GroupLayout.PREFERRED_SIZE, 89, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(jPanel2Layout.createSequentialGroup()
+                                .addComponent(eFacNro, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(eError, javax.swing.GroupLayout.PREFERRED_SIZE, 86, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addComponent(jLabel4))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jLabel7)
+                            .addComponent(NitIde, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                    .addGroup(jPanel2Layout.createSequentialGroup()
+                        .addGap(488, 488, 488)
+                        .addComponent(jLabel6)))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel3)
-                    .addComponent(fFacFec, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel5)
-                    .addComponent(eTipEle, javax.swing.GroupLayout.PREFERRED_SIZE, 89, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(eFacNro, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel4))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(eError, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel6))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addComponent(selsinerrores, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(seltodos, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel2Layout.createSequentialGroup()
+                        .addComponent(enviar, javax.swing.GroupLayout.PREFERRED_SIZE, 117, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(autoboton, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                     .addGroup(jPanel2Layout.createSequentialGroup()
                         .addComponent(Filtrar, javax.swing.GroupLayout.PREFERRED_SIZE, 117, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(EvioAsincrono, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                    .addGroup(jPanel2Layout.createSequentialGroup()
-                        .addComponent(enviar, javax.swing.GroupLayout.PREFERRED_SIZE, 117, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                        .addComponent(detener, javax.swing.GroupLayout.PREFERRED_SIZE, 74, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(Auto, javax.swing.GroupLayout.DEFAULT_SIZE, 73, Short.MAX_VALUE)))
+                        .addComponent(EvioAsincrono, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
                 .addContainerGap())
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
+                .addContainerGap()
+                .addComponent(EnvioCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, 237, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 39, Short.MAX_VALUE)
+                .addComponent(seltodos, javax.swing.GroupLayout.PREFERRED_SIZE, 108, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(ErrorCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, 81, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(selsinerrores)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(conpago)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(sinpago)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(sinArticulo)
+                .addGap(99, 99, 99))
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel2Layout.createSequentialGroup()
-                .addContainerGap(14, Short.MAX_VALUE)
+                .addContainerGap()
+                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(seltodos)
+                    .addComponent(ErrorCorreo)
+                    .addComponent(selsinerrores)
+                    .addComponent(conpago)
+                    .addComponent(sinpago)
+                    .addComponent(sinArticulo)
+                    .addComponent(EnvioCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 21, Short.MAX_VALUE)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel5, javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addComponent(jLabel3, javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addComponent(jLabel2, javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                        .addComponent(seltodos)
-                        .addComponent(Filtrar)
-                        .addComponent(EvioAsincrono))
-                    .addComponent(jLabel4, javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addComponent(jLabel6, javax.swing.GroupLayout.Alignment.TRAILING))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
+                        .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jLabel5, javax.swing.GroupLayout.Alignment.TRAILING)
+                            .addComponent(jLabel3, javax.swing.GroupLayout.Alignment.TRAILING)
+                            .addComponent(jLabel2, javax.swing.GroupLayout.Alignment.TRAILING)
+                            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                                .addComponent(Filtrar)
+                                .addComponent(EvioAsincrono))
+                            .addComponent(jLabel4, javax.swing.GroupLayout.Alignment.TRAILING)
+                            .addComponent(jLabel6, javax.swing.GroupLayout.Alignment.TRAILING))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED))
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
+                        .addComponent(jLabel7)
+                        .addGap(12, 12, 12)))
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addComponent(iFacFec, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(fFacFec, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                         .addComponent(eTipEle, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addComponent(enviar)
-                        .addComponent(Auto)
-                        .addComponent(selsinerrores)
                         .addComponent(eError, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addComponent(eFacNro, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addComponent(detener)))
+                        .addComponent(NitIde, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(autoboton)))
                 .addContainerGap())
         );
 
@@ -481,14 +570,14 @@ ORDER BY Fecha DESC
 
             },
             new String [] {
-                "FacSec", "Sel", "Fecha", "FacNro", "Nit", "Cliente", "Estado"
+                "FacSec", "Sel", "Fecha", "FacNro", "Nit", "Cliente", "Estado", "pago", "Total"
             }
         ) {
             Class[] types = new Class [] {
-                java.lang.Object.class, java.lang.Boolean.class, java.lang.Object.class, java.lang.Object.class, java.lang.Object.class, java.lang.Object.class, java.lang.Object.class
+                java.lang.Object.class, java.lang.Boolean.class, java.lang.Object.class, java.lang.Object.class, java.lang.Object.class, java.lang.Object.class, java.lang.Object.class, java.lang.Object.class, java.lang.Object.class
             };
             boolean[] canEdit = new boolean [] {
-                true, true, false, true, false, true, true
+                true, true, false, true, false, true, true, true, true
             };
 
             public Class getColumnClass(int columnIndex) {
@@ -525,6 +614,22 @@ ORDER BY Fecha DESC
         nroFac.setFont(new java.awt.Font("Dialog", 0, 18)); // NOI18N
         nroFac.setText("Factura");
 
+        configuracion1.setIcon(new javax.swing.ImageIcon(getClass().getResource("/icons8-subir-a-la-nube-20.png"))); // NOI18N
+        configuracion1.setText("Tracking correos");
+        configuracion1.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                configuracion1MouseClicked(evt);
+            }
+        });
+
+        enviocorreo.setIcon(new javax.swing.ImageIcon(getClass().getResource("/icons8-subir-a-la-nube-20.png"))); // NOI18N
+        enviocorreo.setText("Envio correos");
+        enviocorreo.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                enviocorreoMouseClicked(evt);
+            }
+        });
+
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
@@ -534,34 +639,35 @@ ORDER BY Fecha DESC
                     .addGroup(jPanel1Layout.createSequentialGroup()
                         .addGap(20, 20, 20)
                         .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jScrollPane1)
                             .addGroup(jPanel1Layout.createSequentialGroup()
-                                .addComponent(jScrollPane1)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED))
-                            .addGroup(jPanel1Layout.createSequentialGroup()
-                                .addComponent(jLabel1)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))))
+                                .addComponent(titulo)
+                                .addGap(32, 32, 32)
+                                .addComponent(configuracion)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                .addComponent(configuracion1)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                .addComponent(enviocorreo)
+                                .addGap(0, 0, Short.MAX_VALUE)))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED))
                     .addGroup(jPanel1Layout.createSequentialGroup()
                         .addGap(8, 8, 8)
                         .addComponent(jPanel2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                         .addGap(6, 6, 6)))
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
-                        .addGap(0, 0, Short.MAX_VALUE)
-                        .addComponent(configuracion)
-                        .addGap(17, 17, 17))
-                    .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 467, Short.MAX_VALUE)
-                            .addComponent(nroFac))
-                        .addGap(15, 15, 15))))
+                    .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 479, Short.MAX_VALUE)
+                    .addComponent(nroFac))
+                .addGap(15, 15, 15))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addGap(21, 21, 21)
-                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel1)
-                    .addComponent(configuracion))
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(titulo)
+                    .addComponent(configuracion)
+                    .addComponent(configuracion1)
+                    .addComponent(enviocorreo))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(jPanel1Layout.createSequentialGroup()
@@ -569,7 +675,7 @@ ORDER BY Fecha DESC
                             .addGroup(jPanel1Layout.createSequentialGroup()
                                 .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 577, Short.MAX_VALUE))
+                                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 558, Short.MAX_VALUE))
                             .addGroup(jPanel1Layout.createSequentialGroup()
                                 .addGap(24, 24, 24)
                                 .addComponent(jScrollPane2)))
@@ -600,7 +706,7 @@ ORDER BY Fecha DESC
     }//GEN-LAST:event_configuracionMouseClicked
 
     private void EvioAsincronoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_EvioAsincronoActionPerformed
-enviarFacturasSeleccionadasAsincrono();
+        enviarFacturasSeleccionadasAsincrono();
 
     }//GEN-LAST:event_EvioAsincronoActionPerformed
 
@@ -612,48 +718,64 @@ enviarFacturasSeleccionadasAsincrono();
     }//GEN-LAST:event_enviarActionPerformed
     public void auto() {
 
-        detener.setEnabled(true);
+        /*   detener.setEnabled(true);
         Auto.setForeground(Color.decode("#FFFFFF"));
         Auto.setBackground(Color.decode("#288F22"));
+
         if (detener.isEnabled()) {
-            timer = new Timer(); // ✅ SIEMPRE nuevo
+         //   timer = new Timer(); // ✅ SIEMPRE nuevo
             tarea = new TimerTask() {
                 @Override
                 public void run() {
-                    envioAuto();
+                   
                 }
             };
-            timer.scheduleAtFixedRate(tarea, 1000, 1000);
+          //  timer.scheduleAtFixedRate(tarea, 1000, 1000);
         }
+9*/
     }
+
+    public void iniciarScheduler() {
+
+        scheduler = Executors.newSingleThreadScheduledExecutor();
+
+        scheduler.scheduleAtFixedRate(() -> {
+
+            if (ejecutando) {
+                return;
+            }
+
+            ejecutando = true;
+
+            try {
+
+                envioAuto();
+
+            } catch (Exception ex) {
+
+                System.out.println("Error: " + ex.getMessage());
+
+            } finally {
+
+                ejecutando = false;
+
+            }
+
+        }, 0, 10, TimeUnit.MINUTES); // inicia inmediatamente y luego cada 10 minutos
+    }
+
+    public void detenerScheduler() {
+
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdown();
+        }
+
+    }
+
 
     private void seltodosActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_seltodosActionPerformed
 
     }//GEN-LAST:event_seltodosActionPerformed
-
-    private void detenerActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_detenerActionPerformed
-
-        Auto.setBackground(Color.decode("#DE120D"));
-        Auto.setEnabled(true);
-        Auto.setForeground(Color.decode("#FFFFFF"));
-        detener.setEnabled(false);
-
-        if (timer != null) {
-            timer.cancel(); // cancela el timer actual
-            timer = null;
-        }
-        xdetener = true;
-        bloquearUI(false);
-        CargarFacturas();
-    }//GEN-LAST:event_detenerActionPerformed
-
-    private void AutoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_AutoActionPerformed
-
-        xdetener = false;
-        seltodos.setSelected(true);
-        bloquearUI(true);
-        auto();
-    }//GEN-LAST:event_AutoActionPerformed
 
     private void selsinerroresActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_selsinerroresActionPerformed
         // TODO add your handling code here:
@@ -663,13 +785,137 @@ enviarFacturasSeleccionadasAsincrono();
         CargarFacturas();
     }//GEN-LAST:event_FiltrarActionPerformed
 
+    private void ErrorCorreoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_ErrorCorreoActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_ErrorCorreoActionPerformed
+
+    private void sinpagoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_sinpagoActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_sinpagoActionPerformed
+
+    private void conpagoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_conpagoActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_conpagoActionPerformed
+
+    private void sinArticuloActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_sinArticuloActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_sinArticuloActionPerformed
+
+    private void configuracion1MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_configuracion1MouseClicked
+
+   mostrarDialogo("N");
+
+    }//GEN-LAST:event_configuracion1MouseClicked
+
+    private void autobotonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_autobotonActionPerformed
+        if (autoboton.isSelected()) {
+
+            titulo.setText("Auto Envío ACTIVO");
+
+            iniciarScheduler();
+            autoboton.setBackground(Color.GREEN);
+            titulo.setText("Proceso automático iniciado");
+
+        } else {
+
+            titulo.setText("Auto Envío DETENIDO");
+
+            detenerScheduler();
+            autoboton.setBackground(Color.RED);
+            titulo.setText("Proceso automático detenido");
+
+        }
+
+    }//GEN-LAST:event_autobotonActionPerformed
+
+    private void enviocorreoMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_enviocorreoMouseClicked
+        mostrarDialogoCor("N");
+        // TODO add your handling code here:
+    }//GEN-LAST:event_enviocorreoMouseClicked
+
+    public void iniciarDialogTimer() {
+
+    schedulerDialog = Executors.newSingleThreadScheduledExecutor();
+
+    schedulerDialog.scheduleWithFixedDelay(() -> {
+
+        mostrarDialogo("S");
+
+    }, 1, 60, TimeUnit.MINUTES);
+
+}
+    
+     public void iniciarDialogcorTimer() {
+
+    schedulerDialogenvcor = Executors.newSingleThreadScheduledExecutor();
+
+    schedulerDialogenvcor.scheduleWithFixedDelay(() -> {
+
+        mostrarDialogoCor("S");
+
+   }, 1, 60, TimeUnit.MINUTES);
+
+}
+    
+    
+     public void detenerDialogcorTimer() {
+
+    if (schedulerDialogenvcor != null && !schedulerDialogenvcor.isShutdown()) {
+        schedulerDialogenvcor.shutdown();
+    }
+
+}
+    public void detenerDialogTimer() {
+
+    if (schedulerDialog != null && !schedulerDialog.isShutdown()) {
+        schedulerDialog.shutdown();
+    }
+
+}
+    
+    
+    
+    
+            
+      public void mostrarDialogoCor(String auto) {
+
+    if (dialogProcesocor == null || !dialogProcesocor.isShowing()) {
+
+        SwingUtilities.invokeLater(() -> {
+            dialogProcesocor = new EnvioCorreos(this, true,auto); // tu dialog
+             dialogProcesocor.setLocationRelativeTo(null); // Centra la ventana
+            dialogProcesocor.setVisible(true);
+
+        });
+
+    }
+
+}      
+            
+    public void mostrarDialogo(String auto) {
+
+    if (dialogProceso == null || !dialogProceso.isShowing()) {
+
+        SwingUtilities.invokeLater(() -> {
+            dialogProceso = new ActualizarEstadoCorreo(this, true,auto); // tu dialog
+             dialogProceso.setLocationRelativeTo(null); // Centra la ventana
+            dialogProceso.setVisible(true);
+
+        });
+
+    }
+
+}
+            
+            
     public void envioAuto() {
 
         /*new Thread(new Runnable() {
             @Override
             public void run() {*/
+        seltodos.setSelected(true);
         DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
-
+           CargarFacturas();
         for (int i = 0; i < model.getRowCount(); i++) {
             if (xdetener) {
                 return;
@@ -740,60 +986,59 @@ enviarFacturasSeleccionadasAsincrono();
     }
 
     private void enviarFacturasSeleccionadasAsincrono() {
-          DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
-        int HILOS = 1000; // ajusta entre 5 y 10
-ExecutorService executor = Executors.newFixedThreadPool(HILOS);
+        DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
+        int HILOS = 100; // ajusta entre 5 y 10
+        ExecutorService executor = Executors.newFixedThreadPool(HILOS);
 
-AtomicInteger enviadas = new AtomicInteger(0);
-int total = model.getRowCount();
+        AtomicInteger enviadas = new AtomicInteger(0);
+        int total = model.getRowCount();
 
-bloquearUI(true);
+        bloquearUI(true);
 
-for (int i = 0; i < model.getRowCount(); i++) {
-    Boolean seleccionado = (Boolean) model.getValueAt(i, 1);
+        for (int i = 0; i < model.getRowCount(); i++) {
+            Boolean seleccionado = (Boolean) model.getValueAt(i, 1);
 
-    if (Boolean.TRUE.equals(seleccionado)) {
-        String numeroFactura = model.getValueAt(i, 0).toString();
-        String eFacnro = model.getValueAt(i, 3).toString();
+            if (Boolean.TRUE.equals(seleccionado)) {
+                String numeroFactura = model.getValueAt(i, 0).toString();
+                String eFacnro = model.getValueAt(i, 3).toString();
 
-        executor.submit(() -> {
-            try {
-                enviarFacturaDian(numeroFactura, eFacnro);
+                executor.submit(() -> {
+                    try {
+                        enviarFacturaDian(numeroFactura, eFacnro);
 
-                int count = enviadas.incrementAndGet();
-                SwingUtilities.invokeLater(() ->
-                    nroFac.setText("Enviadas "+ eFacnro+" "+ count + " / " + total)
-                );
-          
-            } catch (Exception ex) {
-                SwingUtilities.invokeLater(() ->
-                    TXTresponse.append(
-                        "❌ Error factura " + numeroFactura + ": " + ex.getMessage() + "\n"
-                    )
-                );
+                        int count = enviadas.incrementAndGet();
+                        SwingUtilities.invokeLater(()
+                                -> nroFac.setText("Enviadas " + eFacnro + " " + count + " / " + total)
+                        );
+
+                    } catch (Exception ex) {
+                        SwingUtilities.invokeLater(()
+                                -> TXTresponse.append(
+                                        "❌ Error factura " + numeroFactura + ": " + ex.getMessage() + "\n"
+                                )
+                        );
+                    }
+                });
             }
-        });
-    }
-}
+        }
 
-executor.shutdown();
+        executor.shutdown();
 
 // cuando termine todo
-new Thread(() -> {
-    try {
-        executor.awaitTermination(1, TimeUnit.HOURS);
-        SwingUtilities.invokeLater(() -> {
-            bloquearUI(false);
-            nroFac.setText("Proceso terminado");
-             CargarFacturas(); 
-        });
-    } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-    }
-}).start();
-        
-        
-      /*  DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
+        new Thread(() -> {
+            try {
+                executor.awaitTermination(1, TimeUnit.HOURS);
+                SwingUtilities.invokeLater(() -> {
+                    bloquearUI(false);
+                    nroFac.setText("Proceso terminado");
+                    CargarFacturas();
+                });
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }).start();
+
+        /*  DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
 
         for (int i = 0; i < model.getRowCount(); i++) {
             Boolean seleccionado = (Boolean) model.getValueAt(i, 1);
@@ -819,7 +1064,7 @@ new Thread(() -> {
                 worker.execute();
             }
         }
-*/
+         */
     }
 
     private void bloquearUI(boolean estado) {
@@ -830,7 +1075,7 @@ new Thread(() -> {
 
     private void enviarFacturaDian(String numeroFactura, String eFacnro) throws Exception {
 
-        String endpoint = conws.getURLServicio();//"http://169.46.48.131:8087/MediMantisDiscol/rest/wsEnvioFacturaDianV2";
+        String endpoint = "http://169.46.48.131:8087/MantisWebServices/rest/wsEnvioFacturaDianV2";
         URL url = new URL(endpoint);
 
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -839,7 +1084,7 @@ new Thread(() -> {
         conn.setDoOutput(true);
 
         // JSON Body
-        String jsonBody = "{ \"NumeroFactura\": \"" + numeroFactura + "\" }";
+        String jsonBody = "{ \"nFacCliCorEle\": \"" + EnvioCorreo.getText() + "\", \"NumeroFactura\": \"" + numeroFactura + "\" }";
 
         try (OutputStream os = conn.getOutputStream()) {
             os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
@@ -905,25 +1150,30 @@ new Thread(() -> {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
-    private javax.swing.JButton Auto;
+    private javax.swing.JTextField EnvioCorreo;
+    private javax.swing.JCheckBox ErrorCorreo;
     private javax.swing.JButton EvioAsincrono;
     private javax.swing.JButton Filtrar;
+    private javax.swing.JTextField NitIde;
     private javax.swing.JTextArea TXTresponse;
     private javax.swing.JTable TablaFactura;
+    private javax.swing.JToggleButton autoboton;
     private javax.swing.JLabel configuracion;
-    private javax.swing.JButton detener;
+    private javax.swing.JLabel configuracion1;
+    private javax.swing.JCheckBox conpago;
     private javax.swing.JTextField eError;
     private javax.swing.JTextField eFacNro;
     private javax.swing.JComboBox<String> eTipEle;
     private javax.swing.JButton enviar;
+    private javax.swing.JLabel enviocorreo;
     private com.toedter.calendar.JDateChooser fFacFec;
     private com.toedter.calendar.JDateChooser iFacFec;
-    private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
+    private javax.swing.JLabel jLabel7;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
     private javax.swing.JScrollPane jScrollPane1;
@@ -931,5 +1181,8 @@ new Thread(() -> {
     private javax.swing.JLabel nroFac;
     private javax.swing.JCheckBox selsinerrores;
     private javax.swing.JCheckBox seltodos;
+    private javax.swing.JCheckBox sinArticulo;
+    private javax.swing.JCheckBox sinpago;
+    private javax.swing.JLabel titulo;
     // End of variables declaration//GEN-END:variables
 }
