@@ -5,6 +5,7 @@
 package com.mantis.dianreenvio;
 
 import BaseDatos.ConexionManager;
+import BaseDatos.ServerMantisSQL;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -20,6 +21,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
@@ -31,12 +36,11 @@ import org.json.JSONObject;
  * @author Charly Cimino
  */
 public class ActualizarEstadoCorreo extends javax.swing.JDialog {
-
+   ServerMantisSQL con = new ServerMantisSQL();
     List<String> listaEmailId = new ArrayList<>();
     static String Auto = "N";
-    
 
-    public ActualizarEstadoCorreo(java.awt.Frame parent, boolean modal,String pauto) {
+    public ActualizarEstadoCorreo(java.awt.Frame parent, boolean modal, String pauto) {
         super(parent, modal);
         Auto = pauto;
         initComponents();
@@ -47,10 +51,10 @@ public class ActualizarEstadoCorreo extends javax.swing.JDialog {
 // Asignar a los datepickers
         iFacFec.setDate(hoy);
         fFacFec.setDate(hoy);
-        
-        if(Auto.equalsIgnoreCase("S")){
-               cargarestadoCorreo();
-                enviobloquesestado();
+
+        if (Auto.equalsIgnoreCase("S")) {
+            cargarestadoCorreo();
+            enviobloquesestado();
         }
 
     }
@@ -163,11 +167,10 @@ public class ActualizarEstadoCorreo extends javax.swing.JDialog {
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
-                .addGap(17, 17, 17)
-                .addComponent(jLabel1)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
                     .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addComponent(jLabel1)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addComponent(jLabel3, javax.swing.GroupLayout.Alignment.TRAILING)
                             .addComponent(jLabel2, javax.swing.GroupLayout.Alignment.TRAILING))
@@ -215,66 +218,310 @@ public class ActualizarEstadoCorreo extends javax.swing.JDialog {
     }//GEN-LAST:event_jButton1ActionPerformed
 
     private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
- enviobloquesestado();
+        enviobloquesestado();
     }//GEN-LAST:event_jButton2ActionPerformed
 
- 
-public void enviobloquesestado() {
+    public void enviobloquesestadoant() {
 
-    SwingWorker<Void, Integer> worker = new SwingWorker<Void, Integer>() {
+        SwingWorker<Void, Integer> worker = new SwingWorker<Void, Integer>() {
 
-        @Override
-        protected Void doInBackground() throws Exception {
-jButton2.setEnabled(false);
-jButton1.setEnabled(false);
-            int count = 0;
-            List<JSONObject> bloques = generarJsonPorBloques(listaEmailId, 1);
+            @Override
+            protected Void doInBackground() throws Exception {
 
-            progressBar.setMaximum(bloques.size());
-progressBar.setStringPainted(true);
-            for (JSONObject jsonEnvio : bloques) {
-                try {
+                SwingUtilities.invokeLater(() -> {
+                    jButton2.setEnabled(false);
+                    jButton1.setEnabled(false);
+                });
 
-                    enviarCorreosTracking(jsonEnvio.toString());
+                List<JSONObject> bloques = generarJsonPorBloques(listaEmailId, 1);
 
-                    count++;
-                     
-                    publish(count); // envía progreso al UI
+                int total = bloques.size();
 
-                } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> {
+                    progressBar.setMaximum(total);
+                    progressBar.setValue(0);
+                    progressBar.setStringPainted(true);
+                });
 
-                    contadorenviados.setText("Error envío: " + ex.getMessage());
+                AtomicInteger enviados = new AtomicInteger(0);
 
+                // Pool de 4 hilos
+                ExecutorService executor = Executors.newFixedThreadPool(4);
+
+                List<Future<?>> tareas = new ArrayList<>();
+
+                for (JSONObject jsonEnvio : bloques) {
+
+                    tareas.add(executor.submit(() -> {
+
+                        try {
+
+                            enviarCorreosTracking(jsonEnvio.toString());
+
+                            int count = enviados.incrementAndGet();
+
+                            publish(count);
+
+                        } catch (Exception ex) {
+
+                            SwingUtilities.invokeLater(()
+                                    -> contadorenviados.setText("Error envío: " + ex.getMessage())
+                            );
+                        }
+
+                    }));
                 }
+
+                // esperar a que terminen todos
+                for (Future<?> f : tareas) {
+                    f.get();
+                }
+
+                executor.shutdown();
+
+                return null;
             }
 
-            return null;
+            @Override
+            protected void process(List<Integer> chunks) {
+
+                int value = chunks.get(chunks.size() - 1);
+
+                progressBar.setValue(value);
+
+                contadorenviados.setText(
+                        "Bloques enviados: " + value + " / " + progressBar.getMaximum()
+                );
+            }
+
+            @Override
+            protected void done() {
+
+                jButton2.setEnabled(true);
+                jButton1.setEnabled(true);
+
+                contadorenviados.setText("Envío finalizado");
+
+                dispose();
+            }
+        };
+
+        worker.execute();
+    }
+
+    public void enviobloquesestado() {
+
+        SwingWorker<Void, Integer> worker = new SwingWorker<Void, Integer>() {
+
+            @Override
+            protected Void doInBackground() throws Exception {
+                jButton2.setEnabled(false);
+                jButton1.setEnabled(false);
+                int count = 0;
+                List<JSONObject> bloques = generarJsonPorBloques2(listaEmailId, 100);
+
+                progressBar.setMaximum(bloques.size());
+                progressBar.setStringPainted(true);
+                for (JSONObject jsonEnvio : bloques) {
+                    try {
+
+                        /// enviarCorreosTracking(jsonEnvio.toString());
+                         actualizarestadotracking(jsonEnvio.toString());
+                        count++;
+
+                        publish(count); // envía progreso al UI
+
+                    } catch (Exception ex) {
+
+                        contadorenviados.setText("Error envío: " + ex.getMessage());
+
+                    }
+                }
+
+                return null;
+            }
+
+            @Override
+            protected void process(List<Integer> chunks) {
+
+                int value = chunks.get(chunks.size() - 1);
+
+                progressBar.setValue(value);
+
+                contadorenviados.setText(
+                        "Bloques enviados: " + value + " / " + progressBar.getMaximum()
+                );
+            }
+
+            @Override
+            protected void done() {
+                jButton2.setEnabled(true);
+                jButton1.setEnabled(true);
+                contadorenviados.setText("Envío finalizado");
+                dispose();
+
+            }
+        };
+
+        worker.execute();
+    }
+
+    private void actualizarestadotracking(String jsonBody) {
+        try {
+            String endpoint = "https://api.smtp2go.com/v3/email/search";
+            URL url = new URL(endpoint);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("X-Smtp2go-Api-Key", "api-991E817E7E38462481E3EC5BFB6CABC9");
+
+            conn.setDoOutput(true);
+            System.out.println("url: " + url.toString());
+            System.out.println("jsonBody: " + jsonBody);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
+                os.flush();
+            }
+
+            int responseCode = conn.getResponseCode();
+
+            InputStream is = (responseCode >= 200 && responseCode < 300)
+                    ? conn.getInputStream()
+                    : conn.getErrorStream();
+
+            String response;
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                response = br.lines().collect(Collectors.joining());
+            }
+
+            conn.disconnect();
+
+            String bonito;
+            if (response.trim().startsWith("[")) {
+                JSONArray jsonArray = new JSONArray(response);
+                bonito = jsonArray.toString(4);
+            } else {
+                JSONObject jsonObject = new JSONObject(response);
+                bonito = jsonObject.toString(4);
+            }
+
+            JSONObject json = new JSONObject(response);
+
+// entrar al nodo data
+            JSONObject data = json.getJSONObject("data");
+
+// obtener array emails
+            JSONArray emails = data.getJSONArray("emails");
+
+            for (int i = 0; i < emails.length(); i++) {
+
+                JSONObject email = emails.getJSONObject(i);
+                actualizarestado(email);
+                //  System.out.println("url: " + bonito);
+            }
+
+        } catch (Exception e) {
+
         }
+    }
 
-        @Override
-        protected void process(List<Integer> chunks) {
+    public void actualizarestado(JSONObject email) {
+        String email_id = email.optString("email_id");
+        String process_status = email.optString("process_status");
+        String recipient = email.optString("recipient");
+        String status = email.optString("status");
+        String responseMail = email.optString("response");
 
-            int value = chunks.get(chunks.size() - 1);
+        // traducir estado
+        String estadoTraducido = traducirEstado(status);
 
-            progressBar.setValue(value);
-
-            contadorenviados.setText(
-                    "Bloques enviados: " + value + " / " + progressBar.getMaximum()
-            );
+        System.out.println("ID: " + email_id);
+        System.out.println("Process: " + process_status);
+        System.out.println("Recipient: " + recipient);
+        System.out.println("Status: " + estadoTraducido);
+        System.out.println("Response: " + responseMail);
+        System.out.println("----------------------");
+        String responseLimpio = limpiarSQL(responseMail);
+        String update = "update Factura set FacTrackCorEst = '"+estadoTraducido+"', FacObsEnvEle = '"+responseLimpio+"' where FacOrdTraSec = '"+email_id+"' and "
+                + " FacTrackCorEst not in ('Entregado','Abierto','Rebotado','Rechazado','Cancelado','Aplazado')  ";
+    
+        
+        // guardar completed
+        if ("completed".equalsIgnoreCase(process_status)) {
+            //istaCompleted.add(email);
+            con.sqlExec(update);
+        } else {
+            // posibles candidatos si NO hay completed
+            if (!"submission".equalsIgnoreCase(status)
+                    && recipient != null
+                    && !recipient.trim().isEmpty()) {
+            con.sqlExec(update);
+                //listaFinal.add(email);
+            }
         }
+        
+    }
+    
+   
+    public static String limpiarSQL(String texto) {
+    if (texto == null) return "";
 
-        @Override
-        protected void done() {
-jButton2.setEnabled(true);
-jButton1.setEnabled(true);
-            contadorenviados.setText("Envío finalizado");
-            dispose();
-
-        }
-    };
-
-    worker.execute();
+    return texto
+            .replace("'", "''")     // escapar comillas simples
+            .replace("\n", " ")     // quitar saltos de línea
+            .replace("\r", " ")
+            .replace("\t", " ")
+            .trim();
 }
+    
+    
+    
+    public String traducirEstado(String estado) {
+
+        if (estado == null) {
+            return "Pendiente";
+        }
+
+        String e = estado.toLowerCase();
+
+        switch (e) {
+            case "processed":
+                return "Procesado";
+
+            case "delivered":
+                return "Entregado";
+
+            case "unsubscribed":
+                return "Desuscrito";
+
+            case "spam":
+                return "Marcado como spam";
+
+            case "deferred":
+                return "Diferido";
+
+            case "opened":
+                return "Abierto";
+
+            case "refused":
+            case "rejected":
+                return "Rechazado";
+
+            case "cancelled":
+                return "Cancelado";
+
+            case "defer":
+                return "Aplazado";
+
+            default:
+                if (e.contains("bounce")) {
+                    return "Rebotado";
+                }
+                return "Pendiente";
+        }
+    }
+
     private void enviarCorreosTracking(String jsonBody) throws Exception {
         String endpoint = "http://169.46.48.131:8087/MantisWebServices/rest/pConsultarEstadoCorreoApi";
         URL url = new URL(endpoint);
@@ -333,8 +580,8 @@ jButton1.setEnabled(true);
                 + " LEFT JOIN Nit n\n"
                 + " ON f.FacNitSec = n.NitSec\n"
                 + " WHERE\n"
-                + " FacEleStatus = 'S' and "
-                + " (FacTrackCorEst not in ('Entregado','Abierto','Rebotado','Rechazado','Cancelado') ) "
+                + " FacEleStatus = 'S' and (facordtrasec IS NOT NULL AND facordtrasec <> '') and  "
+                + " (FacTrackCorEst not in ('Entregado','Abierto','Rebotado','Rechazado','Cancelado','Aplazado') ) "
                 + " AND ( not FacOrdTraSec = '' and not FacOrdTraSec is null) "
                 + " and f.FacEst = 'A'\n"
                 + " AND f.FacFecTra <= DATEADD(MINUTE,-5,GETDATE())\n"
@@ -411,6 +658,36 @@ jButton1.setEnabled(true);
         return listaJson;
     }
 
+    private List<JSONObject> generarJsonPorBloques2(List<String> emails, int tamanio) {
+
+        List<JSONObject> listaJson = new ArrayList<>();
+
+        for (int i = 0; i < emails.size(); i += tamanio) {
+
+            JSONArray emailArray = new JSONArray();
+
+            int fin = Math.min(i + tamanio, emails.size());
+
+            for (int j = i; j < fin; j++) {
+                emailArray.put(emails.get(j));
+            }
+
+            JSONObject data = new JSONObject();
+            data.put("ignore_case", false);
+            data.put("email_id", emailArray);
+            data.put("opened_only", false);
+            data.put("filter_query", JSONObject.NULL);
+            data.put("status_counts", false);
+            data.put("clicked_only", false);
+
+            /*JSONObject root = new JSONObject();
+            root.put("SDTEstadosCorreoApi", data);*/
+            listaJson.add(data);
+        }
+
+        return listaJson;
+    }
+
     /**
      * @param args the command line arguments
      */
@@ -441,7 +718,7 @@ jButton1.setEnabled(true);
         /* Create and display the dialog */
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
-                ActualizarEstadoCorreo dialog = new ActualizarEstadoCorreo(new javax.swing.JFrame(), true,Auto);
+                ActualizarEstadoCorreo dialog = new ActualizarEstadoCorreo(new javax.swing.JFrame(), true, Auto);
                 dialog.addWindowListener(new java.awt.event.WindowAdapter() {
                     @Override
                     public void windowClosing(java.awt.event.WindowEvent e) {

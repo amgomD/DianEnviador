@@ -19,28 +19,20 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.text.DecimalFormat;
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import javax.swing.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JDialog;
-import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableModel;
@@ -58,7 +50,7 @@ public class Enviador extends javax.swing.JFrame {
     ScheduledExecutorService scheduler;
     ScheduledExecutorService schedulerDialog;
     ScheduledExecutorService schedulerDialogenvcor;
-    boolean ejecutando = false;
+    private AtomicBoolean ejecutando = new AtomicBoolean(false);
     JDialog dialogProceso;
     JDialog dialogProcesocor;
     private volatile boolean detenido = false;
@@ -83,7 +75,7 @@ public class Enviador extends javax.swing.JFrame {
         if (seltodos.isSelected()) {
             auto();
         }
-        
+
         iniciarDialogTimer();
         iniciarDialogcorTimer();
 
@@ -172,7 +164,6 @@ public class Enviador extends javax.swing.JFrame {
                 "c.ComFecCre"
         );
 
-
         String sql
                 = "SELECT DISTINCT "
                 + "    f.FacSec AS Sec, "
@@ -186,13 +177,21 @@ public class Enviador extends javax.swing.JFrame {
                 + " FROM factura f  WITH (NOLOCK) "
                 + "LEFT JOIN tipos t ON f.factipcod = t.tipcod "
                 + "LEFT JOIN facturaenvio e ON e.facsec = f.facsec  "
+                + "LEFT JOIN ModalidadContratoMed mod on mod.ModConMedSec = FacModConMedSec "
                 + "LEFT JOIN clientes cli   "
                 + "       ON f.FacNitSec = cli.NitSec "
                 + "      AND f.FacCliSec = cli.CliSec "
                 + "LEFT JOIN Nit n ON f.FacNitSec = n.NitSec   "
-                + "WHERE f.FacEst = 'A'  "
+                //+ "WHERE f.FacEst = 'A' and f.FacEleEnvCor = 'W'  "
+                + "WHERE f.FacEst = 'A'   "
                 + " ";
 
+        
+        if(copago.isSelected()){
+            sql
+                    += " AND ModConMedTipEst = 'CO' ";  
+        }
+        
         if (sinArticulo.isSelected()) {
             sql
                     += "   AND NOT EXISTS (\n"
@@ -207,6 +206,7 @@ public class Enviador extends javax.swing.JFrame {
                     += " AND Nitide like '%" + NitIde.getText() + "%'  AND "
                     + "(CliCorEle  LIKE '%_@_%._%' and  CliCorEle NOT LIKE '% %' ) and  f.FacEleStatus = 'S' and  "
                     + " (f.FacEleEnvCor = 'K' or f.FacEleEnvCor = 'X' or f.FacEleEnvCor = '' or f.FacEleEnvCor is null) ";
+            //  + " (f.FacEleEnvCor = 'W') ";
         } else {
             sql
                     += " AND Nitide like '%" + NitIde.getText() + "%' AND  ( "
@@ -357,6 +357,7 @@ public class Enviador extends javax.swing.JFrame {
         sinArticulo = new javax.swing.JCheckBox();
         EnvioCorreo = new javax.swing.JTextField();
         autoboton = new javax.swing.JToggleButton();
+        copago = new javax.swing.JCheckBox();
         jScrollPane1 = new javax.swing.JScrollPane();
         TablaFactura = new javax.swing.JTable();
         configuracion = new javax.swing.JLabel();
@@ -365,6 +366,7 @@ public class Enviador extends javax.swing.JFrame {
         nroFac = new javax.swing.JLabel();
         configuracion1 = new javax.swing.JLabel();
         enviocorreo = new javax.swing.JLabel();
+        barraprogreso = new javax.swing.JProgressBar();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -463,6 +465,13 @@ public class Enviador extends javax.swing.JFrame {
             }
         });
 
+        copago.setText("copago");
+        copago.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                copagoActionPerformed(evt);
+            }
+        });
+
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
         jPanel2Layout.setHorizontalGroup(
@@ -510,7 +519,7 @@ public class Enviador extends javax.swing.JFrame {
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
                 .addContainerGap()
                 .addComponent(EnvioCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, 237, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 39, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 51, Short.MAX_VALUE)
                 .addComponent(seltodos, javax.swing.GroupLayout.PREFERRED_SIZE, 108, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addComponent(ErrorCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, 81, javax.swing.GroupLayout.PREFERRED_SIZE)
@@ -522,7 +531,9 @@ public class Enviador extends javax.swing.JFrame {
                 .addComponent(sinpago)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(sinArticulo)
-                .addGap(99, 99, 99))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(copago)
+                .addGap(7, 7, 7))
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -535,8 +546,9 @@ public class Enviador extends javax.swing.JFrame {
                     .addComponent(conpago)
                     .addComponent(sinpago)
                     .addComponent(sinArticulo)
-                    .addComponent(EnvioCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 21, Short.MAX_VALUE)
+                    .addComponent(EnvioCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(copago))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
                         .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -636,26 +648,31 @@ public class Enviador extends javax.swing.JFrame {
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                    .addGroup(javax.swing.GroupLayout.Alignment.LEADING, jPanel1Layout.createSequentialGroup()
+                        .addGap(8, 8, 8)
+                        .addComponent(jPanel2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addGap(6, 6, 6))
                     .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addGap(20, 20, 20)
-                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jScrollPane1)
-                            .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addContainerGap()
+                        .addComponent(jScrollPane1)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED))
+                    .addGroup(javax.swing.GroupLayout.Alignment.LEADING, jPanel1Layout.createSequentialGroup()
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                            .addGroup(javax.swing.GroupLayout.Alignment.LEADING, jPanel1Layout.createSequentialGroup()
+                                .addGap(20, 20, 20)
                                 .addComponent(titulo)
                                 .addGap(32, 32, 32)
                                 .addComponent(configuracion)
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                                 .addComponent(configuracion1)
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                                .addComponent(enviocorreo)
-                                .addGap(0, 0, Short.MAX_VALUE)))
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED))
-                    .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addGap(8, 8, 8)
-                        .addComponent(jPanel2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addGap(6, 6, 6)))
+                                .addComponent(enviocorreo))
+                            .addGroup(javax.swing.GroupLayout.Alignment.LEADING, jPanel1Layout.createSequentialGroup()
+                                .addGap(14, 14, 14)
+                                .addComponent(barraprogreso, javax.swing.GroupLayout.PREFERRED_SIZE, 996, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 479, Short.MAX_VALUE)
+                    .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 484, Short.MAX_VALUE)
                     .addComponent(nroFac))
                 .addGap(15, 15, 15))
         );
@@ -671,18 +688,19 @@ public class Enviador extends javax.swing.JFrame {
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addGroup(jPanel1Layout.createSequentialGroup()
-                                .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 558, Short.MAX_VALUE))
-                            .addGroup(jPanel1Layout.createSequentialGroup()
-                                .addGap(24, 24, 24)
-                                .addComponent(jScrollPane2)))
+                        .addGap(24, 24, 24)
+                        .addComponent(jScrollPane2)
                         .addGap(24, 24, 24))
                     .addGroup(jPanel1Layout.createSequentialGroup()
                         .addComponent(nroFac)
-                        .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))))
+                        .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(barraprogreso, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 586, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addContainerGap())))
         );
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -734,10 +752,53 @@ public class Enviador extends javax.swing.JFrame {
         }
 9*/
     }
+public void iniciarScheduler() {
 
-    public void iniciarScheduler() {
+    if (scheduler != null && !scheduler.isShutdown()) {
+        System.out.println("Scheduler ya está corriendo");
+        return;
+    }
 
-        scheduler = Executors.newSingleThreadScheduledExecutor();
+    scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    scheduler.scheduleAtFixedRate(() -> {
+
+        if (!ejecutando.compareAndSet(false, true)) {
+            return;
+        }
+
+
+        try {
+            LocalDate ayer = LocalDate.now().minusDays(1);
+            Date fechaAyer = Date.from(
+                    ayer.atStartOfDay(ZoneId.systemDefault()).toInstant()
+            );
+
+            Date hoy = new Date();
+            iFacFec.setDate(fechaAyer);
+            fFacFec.setDate(hoy);
+   
+            envioAuto();
+
+        } catch (Exception ex) {
+            System.out.println("Error: " + ex.getMessage());
+        } finally {
+            
+        ejecutando.set(false); 
+        }
+
+    }, 0, 5, TimeUnit.MINUTES);
+}
+
+
+
+
+
+
+
+    public void iniciarSchedulerant() {
+
+     /*   scheduler = Executors.newSingleThreadScheduledExecutor();
 
         scheduler.scheduleAtFixedRate(() -> {
 
@@ -748,20 +809,21 @@ public class Enviador extends javax.swing.JFrame {
             ejecutando = true;
 
             try {
-
+                // Fecha actual
+                Date hoy = new Date();
+                // Asignar a los datepickers
+                iFacFec.setDate(hoy);
+                fFacFec.setDate(hoy);
                 envioAuto();
-
             } catch (Exception ex) {
-
                 System.out.println("Error: " + ex.getMessage());
-
             } finally {
 
                 ejecutando = false;
 
             }
 
-        }, 0, 10, TimeUnit.MINUTES); // inicia inmediatamente y luego cada 10 minutos
+        }, 0, 5, TimeUnit.MINUTES); // inicia inmediatamente y luego cada 10 minutos*/
     }
 
     public void detenerScheduler() {
@@ -803,7 +865,7 @@ public class Enviador extends javax.swing.JFrame {
 
     private void configuracion1MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_configuracion1MouseClicked
 
-   mostrarDialogo("N");
+        mostrarDialogo("N");
 
     }//GEN-LAST:event_configuracion1MouseClicked
 
@@ -811,7 +873,6 @@ public class Enviador extends javax.swing.JFrame {
         if (autoboton.isSelected()) {
 
             titulo.setText("Auto Envío ACTIVO");
-
             iniciarScheduler();
             autoboton.setBackground(Color.GREEN);
             titulo.setText("Proceso automático iniciado");
@@ -833,122 +894,280 @@ public class Enviador extends javax.swing.JFrame {
         // TODO add your handling code here:
     }//GEN-LAST:event_enviocorreoMouseClicked
 
+    private void copagoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_copagoActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_copagoActionPerformed
+
     public void iniciarDialogTimer() {
 
-    schedulerDialog = Executors.newSingleThreadScheduledExecutor();
+        schedulerDialog = Executors.newSingleThreadScheduledExecutor();
 
-    schedulerDialog.scheduleWithFixedDelay(() -> {
+        schedulerDialog.scheduleWithFixedDelay(() -> {
 
-        mostrarDialogo("S");
+            mostrarDialogo("S");
 
-    }, 1, 60, TimeUnit.MINUTES);
+        }, 1, 10, TimeUnit.MINUTES);
 
-}
-    
-     public void iniciarDialogcorTimer() {
-
-    schedulerDialogenvcor = Executors.newSingleThreadScheduledExecutor();
-
-    schedulerDialogenvcor.scheduleWithFixedDelay(() -> {
-
-        mostrarDialogoCor("S");
-
-   }, 1, 60, TimeUnit.MINUTES);
-
-}
-    
-    
-     public void detenerDialogcorTimer() {
-
-    if (schedulerDialogenvcor != null && !schedulerDialogenvcor.isShutdown()) {
-        schedulerDialogenvcor.shutdown();
     }
 
-}
+    public void iniciarDialogcorTimer() {
+
+        schedulerDialogenvcor = Executors.newSingleThreadScheduledExecutor();
+
+        schedulerDialogenvcor.scheduleWithFixedDelay(() -> {
+
+            mostrarDialogoCor("S");
+
+        }, 1, 10, TimeUnit.MINUTES);
+
+    }
+
+    public void detenerDialogcorTimer() {
+
+        if (schedulerDialogenvcor != null && !schedulerDialogenvcor.isShutdown()) {
+            schedulerDialogenvcor.shutdown();
+        }
+
+    }
+
     public void detenerDialogTimer() {
 
-    if (schedulerDialog != null && !schedulerDialog.isShutdown()) {
-        schedulerDialog.shutdown();
-    }
-
-}
-    
-    
-    
-    
-            
-      public void mostrarDialogoCor(String auto) {
-
-    if (dialogProcesocor == null || !dialogProcesocor.isShowing()) {
-
-        SwingUtilities.invokeLater(() -> {
-            dialogProcesocor = new EnvioCorreos(this, true,auto); // tu dialog
-             dialogProcesocor.setLocationRelativeTo(null); // Centra la ventana
-            dialogProcesocor.setVisible(true);
-
-        });
+        if (schedulerDialog != null && !schedulerDialog.isShutdown()) {
+            schedulerDialog.shutdown();
+        }
 
     }
 
-}      
-            
+    public void mostrarDialogoCor(String auto) {
+
+        if (dialogProcesocor == null || !dialogProcesocor.isShowing()) {
+
+            SwingUtilities.invokeLater(() -> {
+                dialogProcesocor = new EnvioCorreos(this, false, auto); // tu dialog
+                dialogProcesocor.setLocationRelativeTo(null); // Centra la ventana
+                dialogProcesocor.setVisible(true);
+
+            });
+
+        }
+
+    }
+
     public void mostrarDialogo(String auto) {
 
-    if (dialogProceso == null || !dialogProceso.isShowing()) {
+        if (dialogProceso == null || !dialogProceso.isShowing()) {
 
-        SwingUtilities.invokeLater(() -> {
-            dialogProceso = new ActualizarEstadoCorreo(this, true,auto); // tu dialog
-             dialogProceso.setLocationRelativeTo(null); // Centra la ventana
-            dialogProceso.setVisible(true);
+            SwingUtilities.invokeLater(() -> {
+                dialogProceso = new ActualizarEstadoCorreo(this, false, auto); // tu dialog
+                dialogProceso.setLocationRelativeTo(null); // Centra la ventana
+                dialogProceso.setVisible(true);
 
-        });
+            });
+
+        }
 
     }
 
-}
-            
-            
-    public void envioAuto() {
 
-        /*new Thread(new Runnable() {
-            @Override
-            public void run() {*/
+
+    
+ 
+    
+    
+      
+      
+    
+    public void envioAutanto() {
+        barraprogreso.setIndeterminate(true);
+        //barraprogreso.setString("Cargando facturas...");
+        bloquearUI(true);
         seltodos.setSelected(true);
+        CargarFacturas();
         DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
-           CargarFacturas();
+        List<String[]> facturas = new ArrayList<>();
+        detenerScheduler();
+        // 2️⃣ Copiar datos de la tabla
         for (int i = 0; i < model.getRowCount(); i++) {
-            if (xdetener) {
-                return;
-            }
 
-            Boolean seleccionado = (Boolean) model.getValueAt(i, 1); // columna checkbox
+            Boolean seleccionado = (Boolean) model.getValueAt(i, 1);
 
             if (Boolean.TRUE.equals(seleccionado)) {
 
                 String numeroFactura = model.getValueAt(i, 0).toString();
                 String eFacnro = model.getValueAt(i, 3).toString();
 
-                try {
-                    bloquearUI(true);
-                    nroFac.setText("Enviando: " + eFacnro);
-
-                    enviarFacturaDian(numeroFactura, eFacnro);
-                } catch (Exception ex) {
-                    TXTresponse.setText(
-                            "Error enviando factura " + numeroFactura + "\n" + ex.getMessage()
-                    );
-                }
+                facturas.add(new String[]{numeroFactura, eFacnro});
             }
         }
 
-        bloquearUI(false);
-        CargarFacturas();
-        /*  }
+        // 3️⃣ Worker
+        SwingWorker<Void, Integer> worker = new SwingWorker<Void, Integer>() {
 
-        }).start();*/
+            @Override
+            protected Void doInBackground() {
+                SwingUtilities.invokeLater(() -> {
+                    barraprogreso.setIndeterminate(false);
+                    barraprogreso.setMaximum(facturas.size());
+                    barraprogreso.setValue(0);
+                    barraprogreso.setStringPainted(true);
+                });
 
+                int enviados = 0;
+
+                for (String[] factura : facturas) {
+
+                    if (xdetener) {
+                        break;
+                    }
+
+                    String numeroFactura = factura[0];
+                    String eFacnro = factura[1];
+
+                    try {
+
+                        SwingUtilities.invokeLater(()
+                                -> nroFac.setText("Enviando: " + eFacnro)
+                        );
+
+                        enviarFacturaDian(numeroFactura, eFacnro);
+
+                        enviados++;
+
+                        publish(enviados);
+
+                    } catch (Exception ex) {
+
+                        SwingUtilities.invokeLater(()
+                                -> TXTresponse.setText(
+                                        "Error enviando factura "
+                                        + numeroFactura + "\n" + ex.getMessage()
+                                )
+                        );
+                    }
+                }
+
+                return null;
+            }
+
+            @Override
+            protected void process(List<Integer> chunks) {
+
+                int value = chunks.get(chunks.size() - 1);
+
+                barraprogreso.setValue(value);
+
+                nroFac.setText(
+                        "Facturas enviadas: "
+                        + value + " / " + barraprogreso.getMaximum()
+                );
+            }
+
+            @Override
+            protected void done() {
+
+                bloquearUI(false);
+
+                iniciarScheduler();
+
+                nroFac.setText("Envío finalizado");
+            }
+        };
+
+        worker.execute();
+    }
+public void envioAuto() {
+    barraprogreso.setIndeterminate(true);
+    bloquearUI(true);
+    seltodos.setSelected(true);
+    CargarFacturas();
+
+    DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
+    List<String[]> facturas = new ArrayList<>();
+    detenerScheduler();
+
+    for (int i = 0; i < model.getRowCount(); i++) {
+        Boolean seleccionado = (Boolean) model.getValueAt(i, 1);
+        if (Boolean.TRUE.equals(seleccionado)) {
+            String numeroFactura = model.getValueAt(i, 0).toString();
+            String eFacnro = model.getValueAt(i, 3).toString();
+            facturas.add(new String[]{numeroFactura, eFacnro});
+        }
     }
 
+    SwingWorker<Void, Integer> worker = new SwingWorker<Void, Integer>() {
+
+        @Override
+        protected Void doInBackground() {
+
+            SwingUtilities.invokeLater(() -> {
+                barraprogreso.setIndeterminate(false);
+                barraprogreso.setMaximum(facturas.size());
+                barraprogreso.setValue(0);
+                barraprogreso.setStringPainted(true);
+            });
+
+            java.util.concurrent.ExecutorService pool =
+                    java.util.concurrent.Executors.newFixedThreadPool(5); // ajusta si quieres
+
+            java.util.concurrent.atomic.AtomicInteger enviados = new java.util.concurrent.atomic.AtomicInteger(0);
+
+            for (String[] factura : facturas) {
+
+                if (xdetener) break;
+
+                pool.submit(() -> {
+                    String numeroFactura = factura[0];
+                    String eFacnro = factura[1];
+
+                    try {
+                        SwingUtilities.invokeLater(() ->
+                                nroFac.setText("Enviando: " + eFacnro)
+                        );
+
+                        enviarFacturaDian(numeroFactura, eFacnro);
+
+                        int total = enviados.incrementAndGet();
+                        publish(total);
+
+                    } catch (Exception ex) {
+                        SwingUtilities.invokeLater(() ->
+                                TXTresponse.setText(
+                                        "Error enviando factura "
+                                                + numeroFactura + "\n" + ex.getMessage()
+                                )
+                        );
+                    }
+                });
+            }
+
+            pool.shutdown();
+            while (!pool.isTerminated()) {
+                try { Thread.sleep(200); } catch (InterruptedException e) {}
+            }
+
+            return null;
+        }
+
+        @Override
+        protected void process(List<Integer> chunks) {
+            int value = chunks.get(chunks.size() - 1);
+            barraprogreso.setValue(value);
+            nroFac.setText(
+                    "Facturas enviadas: "
+                            + value + " / " + barraprogreso.getMaximum()
+            );
+        }
+
+        @Override
+        protected void done() {
+            bloquearUI(false);
+            iniciarScheduler();
+            nroFac.setText("Envío finalizado");
+        }
+    };
+
+    worker.execute();
+}
     private void enviarFacturasSeleccionadas() {
 
         new Thread(new Runnable() {
@@ -1158,9 +1377,11 @@ public class Enviador extends javax.swing.JFrame {
     private javax.swing.JTextArea TXTresponse;
     private javax.swing.JTable TablaFactura;
     private javax.swing.JToggleButton autoboton;
+    private javax.swing.JProgressBar barraprogreso;
     private javax.swing.JLabel configuracion;
     private javax.swing.JLabel configuracion1;
     private javax.swing.JCheckBox conpago;
+    private javax.swing.JCheckBox copago;
     private javax.swing.JTextField eError;
     private javax.swing.JTextField eFacNro;
     private javax.swing.JComboBox<String> eTipEle;

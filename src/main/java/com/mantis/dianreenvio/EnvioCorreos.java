@@ -20,6 +20,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
@@ -223,8 +227,102 @@ public class EnvioCorreos extends javax.swing.JDialog {
     private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
         enviobloquesestado();
     }//GEN-LAST:event_jButton2ActionPerformed
+public void enviobloquesestado() {
 
-    public void enviobloquesestado() {
+    SwingWorker<Void, Integer> worker = new SwingWorker<Void, Integer>() {
+
+        @Override
+        protected Void doInBackground() throws Exception {
+
+            SwingUtilities.invokeLater(() -> {
+                jButton2.setEnabled(false);
+                jButton1.setEnabled(false);
+            });
+
+            int total = facturasJson.length();
+
+            SwingUtilities.invokeLater(() -> {
+                progressBar.setMaximum(total);
+                progressBar.setValue(0);
+                progressBar.setStringPainted(true);
+            });
+
+            if (total == 0) {
+                return null;
+            }
+
+            AtomicInteger enviados = new AtomicInteger(0);
+
+            // 4 hilos paralelos
+            ExecutorService executor = Executors.newFixedThreadPool(4);
+
+            List<Future<?>> tareas = new ArrayList<>();
+
+            for (int i = 0; i < facturasJson.length(); i++) {
+
+                JSONObject factura = facturasJson.getJSONObject(i);
+
+                String FacSec = factura.getString("FacSec");
+                String FacNro = factura.getString("FacNro");
+
+                tareas.add(executor.submit(() -> {
+
+                    try {
+
+                        enviarFacturaDian(FacSec, FacNro);
+
+                        int count = enviados.incrementAndGet();
+
+                        publish(count);
+
+                    } catch (Exception ex) {
+
+                        SwingUtilities.invokeLater(() ->
+                                contadorenviados.setText("Error envío: " + ex.getMessage())
+                        );
+                    }
+
+                }));
+            }
+
+            // esperar todas
+            for (Future<?> f : tareas) {
+                f.get();
+            }
+
+            executor.shutdown();
+
+            return null;
+        }
+
+        @Override
+        protected void process(List<Integer> chunks) {
+
+            int value = chunks.get(chunks.size() - 1);
+
+            progressBar.setValue(value);
+
+            contadorenviados.setText(
+                    "Facturas enviadas: "
+                    + value + " / " + progressBar.getMaximum()
+            );
+        }
+
+        @Override
+        protected void done() {
+
+            jButton2.setEnabled(true);
+            jButton1.setEnabled(true);
+
+            contadorenviados.setText("Envío finalizado");
+
+            dispose();
+        }
+    };
+
+    worker.execute();
+}
+    public void enviobloquesestadoand() {
 
         SwingWorker<Void, Integer> worker = new SwingWorker<Void, Integer>() {
 
@@ -237,6 +335,11 @@ public class EnvioCorreos extends javax.swing.JDialog {
                 int total = facturasJson.length();
                 progressBar.setMaximum(total);
                 progressBar.setStringPainted(true);
+                
+                if(facturasJson.length() == 0){
+                     dispose();
+                }
+                
                 for (int i = 0; i < facturasJson.length(); i++) {
 
                     JSONObject factura = facturasJson.getJSONObject(i);
@@ -284,6 +387,7 @@ public class EnvioCorreos extends javax.swing.JDialog {
 
         worker.execute();
     }
+   
 
     private void enviarFacturaDian(String numeroFactura, String eFacnro) throws Exception {
         
@@ -352,8 +456,9 @@ public class EnvioCorreos extends javax.swing.JDialog {
                 + " ON f.FacNitSec = n.NitSec\n"
                 + " WHERE\n"
                 + " FacEleStatus = 'S' and "
-                + "(CliCorEle  LIKE '%_@_%._%' and  CliCorEle NOT LIKE '% %' )  and  "
-                + " (f.FacEleEnvCor = 'K' or f.FacEleEnvCor = 'X' or f.FacEleEnvCor = '' or f.FacEleEnvCor is null) "
+                + "(CliCorEle  LIKE '%_@_%._%' and  CliCorEle NOT LIKE '% %' )  and (facordtrasec IS NULL or facordtrasec = '') and   "
+                + " ((f.FacEleEnvCor = 'K' or f.FacEleEnvCor = 'X' or f.FacEleEnvCor = '' or f.FacEleEnvCor is null)"
+                + " or (FacTrackCorEst not in ('Entregado','Abierto','Rebotado','Rechazado','Cancelado','Aplazado') )) "
                 + " and f.FacEst = 'A'\n"
                 + " AND f.FacFec >= '" + fechaIni + "' "
                 + " AND f.FacFec <= '" + fechaFin + "' "
