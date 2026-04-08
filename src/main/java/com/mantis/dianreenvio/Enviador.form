@@ -66,6 +66,8 @@
                                   <Component id="configuracion1" min="-2" max="-2" attributes="0"/>
                                   <EmptySpace type="unrelated" max="-2" attributes="0"/>
                                   <Component id="enviocorreo" min="-2" max="-2" attributes="0"/>
+                                  <EmptySpace min="-2" pref="87" max="-2" attributes="0"/>
+                                  <Component id="ipconftxt" min="-2" max="-2" attributes="0"/>
                               </Group>
                               <Group type="102" alignment="0" attributes="0">
                                   <EmptySpace min="-2" pref="14" max="-2" attributes="0"/>
@@ -92,6 +94,7 @@
                       <Component id="configuracion" alignment="3" min="-2" max="-2" attributes="0"/>
                       <Component id="configuracion1" alignment="3" min="-2" max="-2" attributes="0"/>
                       <Component id="enviocorreo" alignment="3" min="-2" max="-2" attributes="0"/>
+                      <Component id="ipconftxt" alignment="3" min="-2" max="-2" attributes="0"/>
                   </Group>
                   <EmptySpace max="-2" attributes="0"/>
                   <Group type="103" groupAlignment="0" attributes="0">
@@ -563,6 +566,8 @@
           </Events>
         </Component>
         <Component class="javax.swing.JProgressBar" name="barraprogreso">
+        </Component>
+        <Component class="javax.swing.JLabel" name="ipconftxt">
         </Component>
       </SubComponents>
     </Container>

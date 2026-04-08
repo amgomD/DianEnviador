@@ -6,6 +6,7 @@ package com.mantis.dianreenvio;
 
 import BaseDatos.ConexionManager;
 import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -38,12 +39,27 @@ public class EnvioCorreos extends javax.swing.JDialog {
 
     JSONArray facturasJson;
     static String Auto = "N";
-
+    String rutaURL = "C:\\DianReenvio\\UrlServidor.txt";
+    String ipconf = "";
     public EnvioCorreos(java.awt.Frame parent, boolean modal, String pauto) {
         super(parent, modal);
         Auto = pauto;
         initComponents();
 
+        BufferedReader br = null;
+
+        try {
+
+            br = new BufferedReader(new FileReader(rutaURL));
+            ipconf = br.readLine();
+            while (ipconf != null) {
+                ipconftxt.setText(ipconf);
+                ipconf = br.readLine();
+            }
+        } // Captura de excepción por fichero no encontrado
+        catch (Exception ex) {
+            ex.printStackTrace();
+        }
         // Fecha actual
         Date hoy = new Date();
 
@@ -84,6 +100,7 @@ public class EnvioCorreos extends javax.swing.JDialog {
         jButton2 = new javax.swing.JButton();
         contadorenviados = new javax.swing.JLabel();
         EnvioCorreo = new javax.swing.JTextField();
+        ipconftxt = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
 
@@ -127,6 +144,8 @@ public class EnvioCorreos extends javax.swing.JDialog {
 
         contadorenviados.setText("Documentos");
 
+        ipconftxt.setText("jLabel5");
+
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
@@ -136,42 +155,43 @@ public class EnvioCorreos extends javax.swing.JDialog {
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addComponent(jScrollPane1)
                     .addComponent(progressBar, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                        .addGroup(jPanel1Layout.createSequentialGroup()
-                            .addComponent(jLabel1)
-                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                            .addComponent(EnvioCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE))
-                        .addGroup(jPanel1Layout.createSequentialGroup()
-                            .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                .addGroup(jPanel1Layout.createSequentialGroup()
-                                    .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                        .addComponent(iFacFec, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                        .addComponent(jLabel2))
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                        .addComponent(jLabel3)
-                                        .addComponent(fFacFec, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE))
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                        .addComponent(eFacNro, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                        .addComponent(jLabel4))
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                        .addComponent(jLabel7)
-                                        .addGroup(jPanel1Layout.createSequentialGroup()
-                                            .addComponent(NitIde, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                            .addComponent(jButton1, javax.swing.GroupLayout.PREFERRED_SIZE, 104, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                            .addComponent(jButton2, javax.swing.GroupLayout.PREFERRED_SIZE, 103, javax.swing.GroupLayout.PREFERRED_SIZE))))
-                                .addComponent(contadorenviados))
-                            .addGap(0, 0, Short.MAX_VALUE))))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addComponent(jLabel1)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(EnvioCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(jPanel1Layout.createSequentialGroup()
+                                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addComponent(iFacFec, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                    .addComponent(jLabel2))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addComponent(jLabel3)
+                                    .addComponent(fFacFec, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addComponent(eFacNro, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                    .addComponent(jLabel4))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addComponent(jLabel7)
+                                    .addGroup(jPanel1Layout.createSequentialGroup()
+                                        .addComponent(NitIde, javax.swing.GroupLayout.PREFERRED_SIZE, 129, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                        .addComponent(jButton1, javax.swing.GroupLayout.PREFERRED_SIZE, 104, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                        .addComponent(jButton2, javax.swing.GroupLayout.PREFERRED_SIZE, 103, javax.swing.GroupLayout.PREFERRED_SIZE))))
+                            .addComponent(contadorenviados)
+                            .addComponent(ipconftxt))
+                        .addGap(0, 0, Short.MAX_VALUE)))
                 .addContainerGap())
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
-                .addGap(17, 17, 17)
+                .addComponent(ipconftxt)
+                .addGap(1, 1, 1)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jLabel1)
                     .addComponent(EnvioCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
@@ -316,7 +336,7 @@ public void enviobloquesestado() {
 
             contadorenviados.setText("Envío finalizado");
 
-            dispose();
+           dispose();
         }
     };
 
@@ -392,7 +412,11 @@ public void enviobloquesestado() {
     private void enviarFacturaDian(String numeroFactura, String eFacnro) throws Exception {
         
         
-        String endpoint = "http://169.46.48.131:8087/MantisWebServices/rest/wsEnvioFacturaDianV2";//"http://169.46.48.131:8087/MediMantisDiscol/rest/wsEnvioFacturaDianV2";
+       // String endpoint = "http://169.46.48.131:8087/MantisWebServices/rest/wsEnvioFacturaDianV2";
+        String endpoint = ipconftxt.getText()+"/rest/wsEnvioFacturaDianV2";
+        
+        
+        
         URL url = new URL(endpoint);
 
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -447,15 +471,15 @@ public void enviobloquesestado() {
         String fechaFin = sdf.format(fFacFec.getDate());
         String sql = "SET DATEFORMAT ymd; Select FacNro,FacSec, FacOrdTraSec, FacFec as Fecha "
                 + " FROM factura f WITH (NOLOCK) "
-                + " LEFT JOIN tipos t\n"
+                + " LEFT JOIN tipos t WITH (NOLOCK)         \n"
                 + " ON f.factipcod = t.tipcod\n"
-                + " LEFT JOIN clientes cli\n"
+                + " LEFT JOIN clientes cli WITH (NOLOCK)   \n"
                 + " ON f.FacNitSec = cli.NitSec\n"
                 + " AND f.FacCliSec = cli.CliSec\n"
-                + " LEFT JOIN Nit n\n"
+                + " LEFT JOIN Nit n WITH (NOLOCK)   \n"
                 + " ON f.FacNitSec = n.NitSec\n"
-                + " WHERE\n"
-                + " FacEleStatus = 'S' and "
+               // + " WHERE f.FacEleEnvCor = 'R' \n";
+              + " WHERE FacEleStatus = 'S' and "
                 + "(CliCorEle  LIKE '%_@_%._%' and  CliCorEle NOT LIKE '% %' )  and (facordtrasec IS NULL or facordtrasec = '') and   "
                 + " ((f.FacEleEnvCor = 'K' or f.FacEleEnvCor = 'X' or f.FacEleEnvCor = '' or f.FacEleEnvCor is null)"
                 + " or (FacTrackCorEst not in ('Entregado','Abierto','Rebotado','Rechazado','Cancelado','Aplazado') )) "
@@ -577,6 +601,7 @@ public void enviobloquesestado() {
     private javax.swing.JTextField eFacNro;
     private com.toedter.calendar.JDateChooser fFacFec;
     private com.toedter.calendar.JDateChooser iFacFec;
+    private javax.swing.JLabel ipconftxt;
     private javax.swing.JButton jButton1;
     private javax.swing.JButton jButton2;
     private javax.swing.JLabel jLabel1;

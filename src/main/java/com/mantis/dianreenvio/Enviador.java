@@ -8,6 +8,8 @@ import BaseDatos.ConexionManager;
 import BaseDatos.ServerMantisSQL;
 import java.awt.Color;
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -57,9 +59,40 @@ public class Enviador extends javax.swing.JFrame {
     ServerMantisSQL Con = new ServerMantisSQL();
     DefaultTableModel modelFactura = null;
     ConexionWebservice conws = new ConexionWebservice();
+    String rutaURL = "C:\\DianReenvio\\UrlServidor.txt";
+    String autotxt = "C:\\DianReenvio\\envioauto.txt";
+    String ipconf = "";
+    String valAuto = "N";
 
     public Enviador() {
         initComponents();
+
+        BufferedReader br = null;
+
+        try {
+
+            br = new BufferedReader(new FileReader(rutaURL));
+            ipconf = br.readLine();
+            //while (ipconf != null) {
+                ipconftxt.setText(ipconf);
+                ipconf = br.readLine();
+            //}
+
+            br = new BufferedReader(new FileReader(autotxt));
+            valAuto = br.readLine();
+            //while (valAuto != null) {
+              //  valAuto = br.readLine();
+           //}
+
+        } // Captura de excepción por fichero no encontrado
+        catch (Exception ex) {
+            System.out.println("Error leyendo txt"+ex.toString());
+            ex.printStackTrace();
+
+        }
+        
+        
+   
         this.setIconImage(new ImageIcon(getClass().getResource("/logo35azul.png")).getImage());
 
         // Fecha actual
@@ -71,13 +104,13 @@ public class Enviador extends javax.swing.JFrame {
 
         modelFactura = (DefaultTableModel) TablaFactura.getModel();
         seltodos.setSelected(false);
-        // CargarFacturas();
-        if (seltodos.isSelected()) {
-            auto();
-        }
 
         iniciarDialogTimer();
         iniciarDialogcorTimer();
+     if(valAuto.equalsIgnoreCase("S")){
+            autoboton.setSelected(true);
+            arranqueAuto();
+        }
 
     }
 
@@ -172,26 +205,25 @@ public class Enviador extends javax.swing.JFrame {
                 + "    n.NitIde AS Nit, "
                 + "    cli.CliNom AS Cliente, "
                 + "    f.FacEleStatus AS Estado,"
-                + " (select sum(Facval) from facturapago p where p.facsec = f.facsec) as pago, "
-                + " (select sum(Karvaltotmendes) from facturakardex k where k.facsec = f.facsec) as Total "
+                + " (select sum(Facval) from facturapago p WITH (NOLOCK)  where p.facsec = f.facsec) as pago, "
+                + " (select sum(Karvaltotmendes) from facturakardex k WITH (NOLOCK)  where k.facsec = f.facsec) as Total "
                 + " FROM factura f  WITH (NOLOCK) "
-                + "LEFT JOIN tipos t ON f.factipcod = t.tipcod "
-                + "LEFT JOIN facturaenvio e ON e.facsec = f.facsec  "
-                + "LEFT JOIN ModalidadContratoMed mod on mod.ModConMedSec = FacModConMedSec "
-                + "LEFT JOIN clientes cli   "
+                + "LEFT JOIN tipos t WITH (NOLOCK)  ON f.factipcod = t.tipcod "
+                + "LEFT JOIN facturaenvio e WITH (NOLOCK)  ON e.facsec = f.facsec  "
+                + "LEFT JOIN ModalidadContratoMed mod WITH (NOLOCK) on mod.ModConMedSec = FacModConMedSec "
+                + "LEFT JOIN clientes cli WITH (NOLOCK)   "
                 + "       ON f.FacNitSec = cli.NitSec "
                 + "      AND f.FacCliSec = cli.CliSec "
-                + "LEFT JOIN Nit n ON f.FacNitSec = n.NitSec   "
+                + "LEFT JOIN Nit n WITH (NOLOCK)  ON f.FacNitSec = n.NitSec   "
                 //+ "WHERE f.FacEst = 'A' and f.FacEleEnvCor = 'W'  "
                 + "WHERE f.FacEst = 'A'   "
                 + " ";
 
-        
-        if(copago.isSelected()){
+        if (copago.isSelected()) {
             sql
-                    += " AND ModConMedTipEst = 'CO' ";  
+                    += " AND ModConMedTipEst = 'CO' ";
         }
-        
+
         if (sinArticulo.isSelected()) {
             sql
                     += "   AND NOT EXISTS (\n"
@@ -367,6 +399,7 @@ public class Enviador extends javax.swing.JFrame {
         configuracion1 = new javax.swing.JLabel();
         enviocorreo = new javax.swing.JLabel();
         barraprogreso = new javax.swing.JProgressBar();
+        ipconftxt = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -666,7 +699,9 @@ public class Enviador extends javax.swing.JFrame {
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                                 .addComponent(configuracion1)
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                                .addComponent(enviocorreo))
+                                .addComponent(enviocorreo)
+                                .addGap(87, 87, 87)
+                                .addComponent(ipconftxt))
                             .addGroup(javax.swing.GroupLayout.Alignment.LEADING, jPanel1Layout.createSequentialGroup()
                                 .addGap(14, 14, 14)
                                 .addComponent(barraprogreso, javax.swing.GroupLayout.PREFERRED_SIZE, 996, javax.swing.GroupLayout.PREFERRED_SIZE)))
@@ -684,7 +719,8 @@ public class Enviador extends javax.swing.JFrame {
                     .addComponent(titulo)
                     .addComponent(configuracion)
                     .addComponent(configuracion1)
-                    .addComponent(enviocorreo))
+                    .addComponent(enviocorreo)
+                    .addComponent(ipconftxt))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(jPanel1Layout.createSequentialGroup()
@@ -752,53 +788,47 @@ public class Enviador extends javax.swing.JFrame {
         }
 9*/
     }
-public void iniciarScheduler() {
 
-    if (scheduler != null && !scheduler.isShutdown()) {
-        System.out.println("Scheduler ya está corriendo");
-        return;
-    }
+    public void iniciarScheduler() {
 
-    scheduler = Executors.newSingleThreadScheduledExecutor();
-
-    scheduler.scheduleAtFixedRate(() -> {
-
-        if (!ejecutando.compareAndSet(false, true)) {
+        if (scheduler != null && !scheduler.isShutdown()) {
+            System.out.println("Scheduler ya está corriendo");
             return;
         }
 
+        scheduler = Executors.newSingleThreadScheduledExecutor();
 
-        try {
-            LocalDate ayer = LocalDate.now().minusDays(1);
-            Date fechaAyer = Date.from(
-                    ayer.atStartOfDay(ZoneId.systemDefault()).toInstant()
-            );
+        scheduler.scheduleAtFixedRate(() -> {
 
-            Date hoy = new Date();
-            iFacFec.setDate(fechaAyer);
-            fFacFec.setDate(hoy);
-   
-            envioAuto();
+            if (!ejecutando.compareAndSet(false, true)) {
+                return;
+            }
 
-        } catch (Exception ex) {
-            System.out.println("Error: " + ex.getMessage());
-        } finally {
-            
-        ejecutando.set(false); 
-        }
+            try {
+                LocalDate ayer = LocalDate.now().minusDays(1);
+                Date fechaAyer = Date.from(
+                        ayer.atStartOfDay(ZoneId.systemDefault()).toInstant()
+                );
 
-    }, 0, 5, TimeUnit.MINUTES);
-}
+                Date hoy = new Date();
+                iFacFec.setDate(fechaAyer);
+                fFacFec.setDate(hoy);
 
+                envioAuto();
 
+            } catch (Exception ex) {
+                System.out.println("Error: " + ex.getMessage());
+            } finally {
 
+                ejecutando.set(false);
+            }
 
-
-
+        }, 0, 5, TimeUnit.MINUTES);
+    }
 
     public void iniciarSchedulerant() {
 
-     /*   scheduler = Executors.newSingleThreadScheduledExecutor();
+        /*   scheduler = Executors.newSingleThreadScheduledExecutor();
 
         scheduler.scheduleAtFixedRate(() -> {
 
@@ -870,6 +900,10 @@ public void iniciarScheduler() {
     }//GEN-LAST:event_configuracion1MouseClicked
 
     private void autobotonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_autobotonActionPerformed
+       arranqueAuto();
+    }//GEN-LAST:event_autobotonActionPerformed
+
+    public void arranqueAuto() {
         if (autoboton.isSelected()) {
 
             titulo.setText("Auto Envío ACTIVO");
@@ -886,8 +920,8 @@ public void iniciarScheduler() {
             titulo.setText("Proceso automático detenido");
 
         }
+    }
 
-    }//GEN-LAST:event_autobotonActionPerformed
 
     private void enviocorreoMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_enviocorreoMouseClicked
         mostrarDialogoCor("N");
@@ -968,15 +1002,6 @@ public void iniciarScheduler() {
 
     }
 
-
-
-    
- 
-    
-    
-      
-      
-    
     public void envioAutanto() {
         barraprogreso.setIndeterminate(true);
         //barraprogreso.setString("Cargando facturas...");
@@ -1075,99 +1100,106 @@ public void iniciarScheduler() {
 
         worker.execute();
     }
-public void envioAuto() {
-    barraprogreso.setIndeterminate(true);
-    bloquearUI(true);
-    seltodos.setSelected(true);
-    CargarFacturas();
 
-    DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
-    List<String[]> facturas = new ArrayList<>();
-    detenerScheduler();
+    public void envioAuto() {
+        barraprogreso.setIndeterminate(true);
+        bloquearUI(true);
+        seltodos.setSelected(true);
+        CargarFacturas();
 
-    for (int i = 0; i < model.getRowCount(); i++) {
-        Boolean seleccionado = (Boolean) model.getValueAt(i, 1);
-        if (Boolean.TRUE.equals(seleccionado)) {
-            String numeroFactura = model.getValueAt(i, 0).toString();
-            String eFacnro = model.getValueAt(i, 3).toString();
-            facturas.add(new String[]{numeroFactura, eFacnro});
+        DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
+        List<String[]> facturas = new ArrayList<>();
+        detenerScheduler();
+
+        for (int i = 0; i < model.getRowCount(); i++) {
+            Boolean seleccionado = (Boolean) model.getValueAt(i, 1);
+            if (Boolean.TRUE.equals(seleccionado)) {
+                String numeroFactura = model.getValueAt(i, 0).toString();
+                String eFacnro = model.getValueAt(i, 3).toString();
+                facturas.add(new String[]{numeroFactura, eFacnro});
+            }
         }
+
+        SwingWorker<Void, Integer> worker = new SwingWorker<Void, Integer>() {
+
+            @Override
+            protected Void doInBackground() {
+
+                SwingUtilities.invokeLater(() -> {
+                    barraprogreso.setIndeterminate(false);
+                    barraprogreso.setMaximum(facturas.size());
+                    barraprogreso.setValue(0);
+                    barraprogreso.setStringPainted(true);
+                });
+
+                java.util.concurrent.ExecutorService pool
+                        = java.util.concurrent.Executors.newFixedThreadPool(5); // ajusta si quieres
+
+                java.util.concurrent.atomic.AtomicInteger enviados = new java.util.concurrent.atomic.AtomicInteger(0);
+
+                for (String[] factura : facturas) {
+
+                    if (xdetener) {
+                        break;
+                    }
+
+                    pool.submit(() -> {
+                        String numeroFactura = factura[0];
+                        String eFacnro = factura[1];
+
+                        try {
+                            SwingUtilities.invokeLater(()
+                                    -> nroFac.setText("Enviando: " + eFacnro)
+                            );
+
+                            enviarFacturaDian(numeroFactura, eFacnro);
+
+                            int total = enviados.incrementAndGet();
+                            publish(total);
+
+                        } catch (Exception ex) {
+                            SwingUtilities.invokeLater(()
+                                    -> TXTresponse.setText(
+                                            "Error enviando factura "
+                                            + numeroFactura + "\n" + ex.getMessage()
+                                    )
+                            );
+                        }
+                    });
+                }
+
+                pool.shutdown();
+                while (!pool.isTerminated()) {
+                    try {
+                        Thread.sleep(200);
+                    } catch (InterruptedException e) {
+                    }
+                }
+
+                return null;
+            }
+
+            @Override
+            protected void process(List<Integer> chunks) {
+                int value = chunks.get(chunks.size() - 1);
+                barraprogreso.setValue(value);
+                nroFac.setText(
+                        "Facturas enviadas: "
+                        + value + " / " + barraprogreso.getMaximum()
+                );
+            }
+
+            @Override
+            protected void done() {
+                bloquearUI(false);
+                iniciarScheduler();
+                nroFac.setText("Envío finalizado");
+            }
+        };
+
+        worker.execute();
     }
 
-    SwingWorker<Void, Integer> worker = new SwingWorker<Void, Integer>() {
-
-        @Override
-        protected Void doInBackground() {
-
-            SwingUtilities.invokeLater(() -> {
-                barraprogreso.setIndeterminate(false);
-                barraprogreso.setMaximum(facturas.size());
-                barraprogreso.setValue(0);
-                barraprogreso.setStringPainted(true);
-            });
-
-            java.util.concurrent.ExecutorService pool =
-                    java.util.concurrent.Executors.newFixedThreadPool(5); // ajusta si quieres
-
-            java.util.concurrent.atomic.AtomicInteger enviados = new java.util.concurrent.atomic.AtomicInteger(0);
-
-            for (String[] factura : facturas) {
-
-                if (xdetener) break;
-
-                pool.submit(() -> {
-                    String numeroFactura = factura[0];
-                    String eFacnro = factura[1];
-
-                    try {
-                        SwingUtilities.invokeLater(() ->
-                                nroFac.setText("Enviando: " + eFacnro)
-                        );
-
-                        enviarFacturaDian(numeroFactura, eFacnro);
-
-                        int total = enviados.incrementAndGet();
-                        publish(total);
-
-                    } catch (Exception ex) {
-                        SwingUtilities.invokeLater(() ->
-                                TXTresponse.setText(
-                                        "Error enviando factura "
-                                                + numeroFactura + "\n" + ex.getMessage()
-                                )
-                        );
-                    }
-                });
-            }
-
-            pool.shutdown();
-            while (!pool.isTerminated()) {
-                try { Thread.sleep(200); } catch (InterruptedException e) {}
-            }
-
-            return null;
-        }
-
-        @Override
-        protected void process(List<Integer> chunks) {
-            int value = chunks.get(chunks.size() - 1);
-            barraprogreso.setValue(value);
-            nroFac.setText(
-                    "Facturas enviadas: "
-                            + value + " / " + barraprogreso.getMaximum()
-            );
-        }
-
-        @Override
-        protected void done() {
-            bloquearUI(false);
-            iniciarScheduler();
-            nroFac.setText("Envío finalizado");
-        }
-    };
-
-    worker.execute();
-}
     private void enviarFacturasSeleccionadas() {
 
         new Thread(new Runnable() {
@@ -1294,7 +1326,9 @@ public void envioAuto() {
 
     private void enviarFacturaDian(String numeroFactura, String eFacnro) throws Exception {
 
-        String endpoint = "http://169.46.48.131:8087/MantisWebServices/rest/wsEnvioFacturaDianV2";
+        //String endpoint = "http://169.46.48.131:8087/MantisWebServices/rest/wsEnvioFacturaDianV2";
+        String endpoint = ipconftxt.getText() + "/rest/wsEnvioFacturaDianV2";
+
         URL url = new URL(endpoint);
 
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -1304,6 +1338,9 @@ public void envioAuto() {
 
         // JSON Body
         String jsonBody = "{ \"nFacCliCorEle\": \"" + EnvioCorreo.getText() + "\", \"NumeroFactura\": \"" + numeroFactura + "\" }";
+
+        System.out.println(endpoint);
+        System.out.println(jsonBody);
 
         try (OutputStream os = conn.getOutputStream()) {
             os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
@@ -1389,6 +1426,7 @@ public void envioAuto() {
     private javax.swing.JLabel enviocorreo;
     private com.toedter.calendar.JDateChooser fFacFec;
     private com.toedter.calendar.JDateChooser iFacFec;
+    private javax.swing.JLabel ipconftxt;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;

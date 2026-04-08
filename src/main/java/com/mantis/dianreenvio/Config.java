@@ -51,6 +51,8 @@ public class Config extends javax.swing.JFrame {
         GuardarConexion = new javax.swing.JButton();
         UrlwebServices = new javax.swing.JTextField();
         jLabel3 = new javax.swing.JLabel();
+        jLabel2 = new javax.swing.JLabel();
+        benvioauto = new javax.swing.JCheckBox();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
 
@@ -86,6 +88,11 @@ public class Config extends javax.swing.JFrame {
         jLabel3.setFont(new java.awt.Font("Dialog", 0, 11)); // NOI18N
         jLabel3.setText("URL Web services");
 
+        jLabel2.setFont(new java.awt.Font("Dialog", 0, 11)); // NOI18N
+        jLabel2.setText("Automatico");
+
+        benvioauto.setText("Envio automatico");
+
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
@@ -101,7 +108,9 @@ public class Config extends javax.swing.JFrame {
                     .addGroup(jPanel1Layout.createSequentialGroup()
                         .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addComponent(jLabel1)
-                            .addComponent(jLabel3))
+                            .addComponent(jLabel3)
+                            .addComponent(jLabel2)
+                            .addComponent(benvioauto))
                         .addGap(0, 0, Short.MAX_VALUE)))
                 .addContainerGap())
         );
@@ -112,11 +121,15 @@ public class Config extends javax.swing.JFrame {
                 .addComponent(jLabel3)
                 .addGap(8, 8, 8)
                 .addComponent(UrlwebServices, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 20, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addComponent(jLabel1)
                 .addGap(5, 5, 5)
                 .addComponent(CadenaServidor, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(34, 34, 34)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(jLabel2)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(benvioauto)
+                .addGap(7, 7, 7)
                 .addComponent(GuardarConexion)
                 .addGap(11, 11, 11))
         );
@@ -141,14 +154,28 @@ public class Config extends javax.swing.JFrame {
 
     private void GuardarConexionActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_GuardarConexionActionPerformed
 
-        String rutalocal = "C:\\DianReenvio\\ConexionLocal.txt";
         String rutaserver = "C:\\DianReenvio\\ConexionServer.txt";
         String rutaURL = "C:\\DianReenvio\\UrlServidor.txt";
+        String rutalocal = "C:\\DianReenvio\\envioauto.txt";
+
+        String envioauto = "N";
+
+        if (benvioauto.isSelected()) {
+            envioauto = "S";
+        }
 
         String Cadenaserverstr = CadenaServidor.getText().toString().trim();
         String URLstr = UrlwebServices.getText().toString().trim();
         Connection connection;
+        try {
 
+            Files.write(Paths.get(rutalocal), envioauto.getBytes(Charset.forName("UTF-8")));
+            jLabel3.setIcon(new javax.swing.ImageIcon(getClass().getResource("/Ok15.png")));
+
+        } catch (IOException ex) {
+            System.out.println("Error: " + ex.getMessage());
+            jLabel3.setIcon(new javax.swing.ImageIcon(getClass().getResource("/error15.png")));
+        }
         try {
             if (netIsAvailable(URLstr) == true) {
                 Files.write(Paths.get(rutaURL), URLstr.getBytes(Charset.forName("UTF-8")));
@@ -161,8 +188,6 @@ public class Config extends javax.swing.JFrame {
             System.out.println("Error: " + ex.getMessage());
             jLabel3.setIcon(new javax.swing.ImageIcon(getClass().getResource("/error15.png")));
         }
-        
-
 
         try {
 
@@ -221,7 +246,7 @@ public class Config extends javax.swing.JFrame {
     private void CargarConf() {
 
         String Ruta = "C:\\DianReenvio\\";
-
+ String rutalocal = "C:\\DianReenvio\\envioauto.txt";
         String rutaserver = "C:\\DianReenvio\\ConexionServer.txt";
         String rutaURL = "C:\\DianReenvio\\UrlServidor.txt";
 
@@ -239,7 +264,6 @@ public class Config extends javax.swing.JFrame {
                 System.out.println("La carpeta ya existe.");
             }
 
-
             if (!crutaserver.exists()) {
                 crutaserver.createNewFile();
             } else {
@@ -256,37 +280,38 @@ public class Config extends javax.swing.JFrame {
                     texto = br.readLine();
                 }
 
-
-
                 br = new BufferedReader(new FileReader(rutaURL));
                 texto = br.readLine();
                 while (texto != null) {
                     UrlwebServices.setText(texto);
                     texto = br.readLine();
                 }
+                
+                     br = new BufferedReader(new FileReader(rutalocal));
+                texto = br.readLine();
+             
+                    
+                    if(texto.equalsIgnoreCase("S")){
+                        benvioauto.setSelected(true);
+                    }
+                    
+
             } // Captura de excepción por fichero no encontrado
-            
-            
-            
-            
-            
-            
             catch (FileNotFoundException ex) {
 
                 ex.printStackTrace();
             } catch (IOException ex) {
- 
-            } catch (Exception ex) {
-              
-            }
 
-     
+            } catch (Exception ex) {
+
+            }
 
         } catch (IOException ex) {
 
         }
 
     }
+
     public boolean VerificarConexion(Connection con) {
         try {
             return con != null && !con.isClosed();
@@ -294,8 +319,8 @@ public class Config extends javax.swing.JFrame {
         }
         return false;
     }
-    
-        private static boolean netIsAvailable(String urlStr) {
+
+    private static boolean netIsAvailable(String urlStr) {
         try {
             URL url = new URL(urlStr);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -315,7 +340,9 @@ public class Config extends javax.swing.JFrame {
     private javax.swing.JTextField CadenaServidor;
     private javax.swing.JButton GuardarConexion;
     private javax.swing.JTextField UrlwebServices;
+    private javax.swing.JCheckBox benvioauto;
     private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JPanel jPanel1;
     // End of variables declaration//GEN-END:variables
