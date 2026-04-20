@@ -61,8 +61,14 @@ public class Enviador extends javax.swing.JFrame {
     ConexionWebservice conws = new ConexionWebservice();
     String rutaURL = "C:\\DianReenvio\\UrlServidor.txt";
     String autotxt = "C:\\DianReenvio\\envioauto.txt";
+    String multipletxt = "C:\\DianReenvio\\multiplehilo.txt";
+    String correotxt = "C:\\DianReenvio\\vercorreo.txt";
+    String ActivarFicc = "C:\\DianReenvio\\ActivarFicc.txt";
     String ipconf = "";
     String valAuto = "N";
+    String valmultiple = "N";
+    String valCorreo = "N";
+    String valFicc = "GX6";
 
     public Enviador() {
         initComponents();
@@ -74,25 +80,36 @@ public class Enviador extends javax.swing.JFrame {
             br = new BufferedReader(new FileReader(rutaURL));
             ipconf = br.readLine();
             //while (ipconf != null) {
-                ipconftxt.setText(ipconf);
-                ipconf = br.readLine();
+            ipconftxt.setText(ipconf);
+            ipconf = br.readLine();
             //}
 
             br = new BufferedReader(new FileReader(autotxt));
             valAuto = br.readLine();
-            //while (valAuto != null) {
-              //  valAuto = br.readLine();
-           //}
 
+            br = new BufferedReader(new FileReader(multipletxt));
+            valmultiple = br.readLine();
+
+            br = new BufferedReader(new FileReader(correotxt));
+            valCorreo = br.readLine();
+
+            br = new BufferedReader(new FileReader(ActivarFicc));
+            if(br.readLine().equalsIgnoreCase("S")){
+                valFicc = "FICC";
+            }
+
+            
+            
+            //while (valAuto != null) {
+            //  valAuto = br.readLine();
+            //}
         } // Captura de excepción por fichero no encontrado
         catch (Exception ex) {
-            System.out.println("Error leyendo txt"+ex.toString());
+            System.out.println("Error leyendo txt" + ex.toString());
             ex.printStackTrace();
 
         }
-        
-        
-   
+
         this.setIconImage(new ImageIcon(getClass().getResource("/logo35azul.png")).getImage());
 
         // Fecha actual
@@ -105,9 +122,12 @@ public class Enviador extends javax.swing.JFrame {
         modelFactura = (DefaultTableModel) TablaFactura.getModel();
         seltodos.setSelected(false);
 
-        iniciarDialogTimer();
-        iniciarDialogcorTimer();
-     if(valAuto.equalsIgnoreCase("S")){
+        if (valCorreo.equalsIgnoreCase("S")) {
+            iniciarDialogTimer();
+            iniciarDialogcorTimer();
+        }
+
+        if (valAuto.equalsIgnoreCase("S")) {
             autoboton.setSelected(true);
             arranqueAuto();
         }
@@ -124,9 +144,14 @@ public class Enviador extends javax.swing.JFrame {
 
     public void CargarFacturas() {
         limpiarGrid();
-
-        List<Object> paramsFactura = new ArrayList<>();
+              String sql = "";
+                String whereComprobanteFinal =  "";
+                  String whereFacturaFinal = "";
+                          List<Object> paramsFactura = new ArrayList<>();
         List<Object> paramsComprobante = new ArrayList<>();
+
+        
+ if(valFicc.equalsIgnoreCase("FICC")){
 
         StringBuilder whereComun = new StringBuilder();
 
@@ -172,7 +197,7 @@ public class Enviador extends javax.swing.JFrame {
 
         whereFactura.append(whereComun);
 
-        String whereFacturaFinal = String.format(
+         whereFacturaFinal = String.format(
                 whereFactura.toString(),
                 "f.FacNro",
                 "f.FacFec",
@@ -190,14 +215,133 @@ public class Enviador extends javax.swing.JFrame {
 
         whereComprobante.append(whereComun);
 
-        String whereComprobanteFinal = String.format(
+         whereComprobanteFinal = String.format(
                 whereComprobante.toString(),
                 "c.ComNum",
                 "c.ComFecCre",
                 "c.ComFecCre"
         );
 
-        String sql
+         sql
+                = "SELECT DISTINCT "
+                + "    f.FacSec AS Sec, "
+                + "    f.FacFec AS Fecha, "
+                + "    f.FacNro AS Numero, "
+                + "    n.NitIde AS Nit, "
+                + "    cli.CliNom AS Cliente, "
+                + "    f.FacEleStatus AS Estado,"
+                + " (select sum(Facval) from facturapago p WITH (NOLOCK)  where p.facsec = f.facsec) as pago, "
+                + " (select sum(Karvaltotmendes) from facturakardex k WITH (NOLOCK)  where k.facsec = f.facsec) as Total "
+                + " FROM factura f  WITH (NOLOCK) "
+                + "LEFT JOIN tipos t WITH (NOLOCK)  ON f.factipcod = t.tipcod "
+                + "LEFT JOIN facturaenvio e WITH (NOLOCK)  ON e.facsec = f.facsec  "
+                + "LEFT JOIN clientes cli WITH (NOLOCK)   "
+                + "       ON f.FacNitSec = cli.NitSec "
+                + "      AND f.FacCliSec = cli.CliSec "
+                + "LEFT JOIN Nit n WITH (NOLOCK)  ON f.FacNitSec = n.NitSec   "
+                //+ "WHERE f.FacEst = 'A' and f.FacEleEnvCor = 'W'  "
+                + "WHERE f.FacEst = 'A'   "
+                + " ";
+
+
+        if (sinArticulo.isSelected()) {
+            sql
+                    += "   AND NOT EXISTS (\n"
+                    + "        SELECT 1\n"
+                    + "        FROM facturakardex fk\n"
+                    + "        WHERE fk.FacSec = f.FacSec\n"
+                    + "  ) ";
+        }
+
+        if (ErrorCorreo.isSelected()) {
+            sql
+                    += " AND Nitide like '%" + NitIde.getText() + "%'  AND "
+                    + "(CliCorEle  LIKE '%_@_%._%' and  CliCorEle NOT LIKE '% %' ) and  f.FacEleStatus = 'S' and  "
+                    + " (f.FacEleEnvCor = 'K' or f.FacEleEnvCor = 'X' or f.FacEleEnvCor = '' or f.FacEleEnvCor is null) ";
+            //  + " (f.FacEleEnvCor = 'W') ";
+        } else {
+            sql
+                    += " AND Nitide like '%" + NitIde.getText() + "%' AND  ( "
+                    + "        (e.facenvresp LIKE '%" + eError.getText() + "%') "
+                    + "     OR (e.facenvresp IS NULL) "
+                    + ") AND (f.FacEleStatus IS NULL OR f.FacEleStatus = '' OR f.FacEleStatus = 'K'  ) ";
+        }
+        
+        
+        
+        
+ }else{
+
+        StringBuilder whereComun = new StringBuilder();
+
+// Número documento
+        if (!eFacNro.getText().trim().isEmpty()) {
+            whereComun.append(" AND %1$s LIKE ?");
+            String valor = "%" + eFacNro.getText().trim() + "%";
+            paramsFactura.add(valor);
+            paramsComprobante.add(valor);
+        }
+
+// Fechas
+        if (iFacFec.getDate() != null && fFacFec.getDate() != null) {
+            whereComun.append(" AND %2$s >= ? AND %3$s <= ?");
+
+            LocalDate ini = iFacFec.getDate().toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate();
+
+            LocalDate fin = fFacFec.getDate().toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate();
+
+            Timestamp tsIni = Timestamp.valueOf(ini.atStartOfDay());
+            Timestamp tsFin = Timestamp.valueOf(fin.atTime(23, 59, 59));
+
+            paramsFactura.add(tsIni);
+            paramsFactura.add(tsFin);
+
+            paramsComprobante.add(tsIni);
+            paramsComprobante.add(tsFin);
+        }
+
+        StringBuilder whereFactura = new StringBuilder();
+        String comboDian = eTipEle.getSelectedItem().toString();
+
+        if (!comboDian.equalsIgnoreCase("TODOS")) {
+            whereFactura.append(" AND t.TipEle = ?");
+            paramsFactura.add(0, comboDian);
+        } else {
+            whereFactura.append(" AND t.TipEle IN ('FAC','NOT','DSO','DDS','NTB')");
+        }
+
+        whereFactura.append(whereComun);
+
+         whereFacturaFinal = String.format(
+                whereFactura.toString(),
+                "f.FacNro",
+                "f.FacFec",
+                "f.FacFec"
+        );
+
+        StringBuilder whereComprobante = new StringBuilder();
+
+        if (!comboDian.equalsIgnoreCase("TODOS")) {
+            whereComprobante.append(" AND t.TipEle = ?");
+            paramsComprobante.add(0, comboDian);
+        } else {
+            whereComprobante.append(" AND t.TipEle IN ('DSO','DDS')");
+        }
+
+        whereComprobante.append(whereComun);
+
+         whereComprobanteFinal = String.format(
+                whereComprobante.toString(),
+                "c.ComNum",
+                "c.ComFecCre",
+                "c.ComFecCre"
+        );
+
+         sql
                 = "SELECT DISTINCT "
                 + "    f.FacSec AS Sec, "
                 + "    f.FacFec AS Fecha, "
@@ -246,6 +390,8 @@ public class Enviador extends javax.swing.JFrame {
                     + "     OR (e.facenvresp IS NULL) "
                     + ") AND (f.FacEleStatus IS NULL OR f.FacEleStatus = '' OR f.FacEleStatus = 'K'  ) ";
         }
+ }
+     
         sql += whereFacturaFinal + " "
                 + "ORDER BY Fecha DESC";
         /*+ "UNION ALL "
@@ -390,12 +536,12 @@ public class Enviador extends javax.swing.JFrame {
         EnvioCorreo = new javax.swing.JTextField();
         autoboton = new javax.swing.JToggleButton();
         copago = new javax.swing.JCheckBox();
+        nroFac = new javax.swing.JLabel();
         jScrollPane1 = new javax.swing.JScrollPane();
         TablaFactura = new javax.swing.JTable();
         configuracion = new javax.swing.JLabel();
         jScrollPane2 = new javax.swing.JScrollPane();
         TXTresponse = new javax.swing.JTextArea();
-        nroFac = new javax.swing.JLabel();
         configuracion1 = new javax.swing.JLabel();
         enviocorreo = new javax.swing.JLabel();
         barraprogreso = new javax.swing.JProgressBar();
@@ -505,6 +651,9 @@ public class Enviador extends javax.swing.JFrame {
             }
         });
 
+        nroFac.setFont(new java.awt.Font("Dialog", 0, 18)); // NOI18N
+        nroFac.setText("Factura");
+
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
         jPanel2Layout.setHorizontalGroup(
@@ -549,24 +698,29 @@ public class Enviador extends javax.swing.JFrame {
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(EvioAsincrono, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
                 .addContainerGap())
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
+            .addGroup(jPanel2Layout.createSequentialGroup()
                 .addContainerGap()
-                .addComponent(EnvioCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, 237, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 51, Short.MAX_VALUE)
-                .addComponent(seltodos, javax.swing.GroupLayout.PREFERRED_SIZE, 108, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addComponent(ErrorCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, 81, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(selsinerrores)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(conpago)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(sinpago)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(sinArticulo)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(copago)
-                .addGap(7, 7, 7))
+                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
+                        .addComponent(EnvioCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, 237, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(seltodos, javax.swing.GroupLayout.PREFERRED_SIZE, 108, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                        .addComponent(ErrorCorreo, javax.swing.GroupLayout.PREFERRED_SIZE, 81, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(selsinerrores)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(conpago)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(sinpago)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(sinArticulo)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(copago)
+                        .addGap(7, 7, 7))
+                    .addGroup(jPanel2Layout.createSequentialGroup()
+                        .addComponent(nroFac)
+                        .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))))
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -607,6 +761,8 @@ public class Enviador extends javax.swing.JFrame {
                         .addComponent(eFacNro, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addComponent(NitIde, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addComponent(autoboton)))
+                .addGap(3, 3, 3)
+                .addComponent(nroFac)
                 .addContainerGap())
         );
 
@@ -656,9 +812,6 @@ public class Enviador extends javax.swing.JFrame {
         TXTresponse.setRows(5);
         jScrollPane2.setViewportView(TXTresponse);
 
-        nroFac.setFont(new java.awt.Font("Dialog", 0, 18)); // NOI18N
-        nroFac.setText("Factura");
-
         configuracion1.setIcon(new javax.swing.ImageIcon(getClass().getResource("/icons8-subir-a-la-nube-20.png"))); // NOI18N
         configuracion1.setText("Tracking correos");
         configuracion1.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -680,36 +833,29 @@ public class Enviador extends javax.swing.JFrame {
         jPanel1Layout.setHorizontalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
-                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addGroup(javax.swing.GroupLayout.Alignment.LEADING, jPanel1Layout.createSequentialGroup()
-                        .addGap(8, 8, 8)
-                        .addComponent(jPanel2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addGap(6, 6, 6))
-                    .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addContainerGap()
-                        .addComponent(jScrollPane1)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED))
-                    .addGroup(javax.swing.GroupLayout.Alignment.LEADING, jPanel1Layout.createSequentialGroup()
-                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                            .addGroup(javax.swing.GroupLayout.Alignment.LEADING, jPanel1Layout.createSequentialGroup()
-                                .addGap(20, 20, 20)
-                                .addComponent(titulo)
-                                .addGap(32, 32, 32)
-                                .addComponent(configuracion)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                                .addComponent(configuracion1)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                                .addComponent(enviocorreo)
-                                .addGap(87, 87, 87)
-                                .addComponent(ipconftxt))
-                            .addGroup(javax.swing.GroupLayout.Alignment.LEADING, jPanel1Layout.createSequentialGroup()
-                                .addGap(14, 14, 14)
-                                .addComponent(barraprogreso, javax.swing.GroupLayout.PREFERRED_SIZE, 996, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
+                .addGap(20, 20, 20)
+                .addComponent(titulo)
+                .addGap(32, 32, 32)
+                .addComponent(configuracion)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(configuracion1)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(enviocorreo)
+                .addGap(87, 87, 87)
+                .addComponent(ipconftxt)
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+            .addGroup(jPanel1Layout.createSequentialGroup()
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 484, Short.MAX_VALUE)
-                    .addComponent(nroFac))
-                .addGap(15, 15, 15))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGap(8, 8, 8)
+                        .addComponent(jPanel2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
+                        .addContainerGap()
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jScrollPane2)
+                            .addComponent(barraprogreso, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(jScrollPane1))))
+                .addGap(0, 0, 0))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -722,21 +868,14 @@ public class Enviador extends javax.swing.JFrame {
                     .addComponent(enviocorreo)
                     .addComponent(ipconftxt))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addGap(24, 24, 24)
-                        .addComponent(jScrollPane2)
-                        .addGap(24, 24, 24))
-                    .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addComponent(nroFac)
-                        .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                    .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(barraprogreso, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 586, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addContainerGap())))
+                .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(barraprogreso, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 290, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 270, Short.MAX_VALUE)
+                .addGap(26, 26, 26))
         );
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -814,7 +953,15 @@ public class Enviador extends javax.swing.JFrame {
                 iFacFec.setDate(fechaAyer);
                 fFacFec.setDate(hoy);
 
-                envioAuto();
+                
+                if(valmultiple.equalsIgnoreCase("S")){
+                    seltodos.setSelected(true);
+                   CargarFacturas();
+                   enviarFacturasSeleccionadas();
+                }else{
+                   envioAuto(); 
+                }
+                //
 
             } catch (Exception ex) {
                 System.out.println("Error: " + ex.getMessage());
@@ -874,7 +1021,7 @@ public class Enviador extends javax.swing.JFrame {
     }//GEN-LAST:event_selsinerroresActionPerformed
 
     private void FiltrarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_FiltrarActionPerformed
-        CargarFacturas();
+       CargarFacturas();
     }//GEN-LAST:event_FiltrarActionPerformed
 
     private void ErrorCorreoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_ErrorCorreoActionPerformed
@@ -900,7 +1047,7 @@ public class Enviador extends javax.swing.JFrame {
     }//GEN-LAST:event_configuracion1MouseClicked
 
     private void autobotonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_autobotonActionPerformed
-       arranqueAuto();
+        arranqueAuto();
     }//GEN-LAST:event_autobotonActionPerformed
 
     public void arranqueAuto() {
@@ -1007,7 +1154,7 @@ public class Enviador extends javax.swing.JFrame {
         //barraprogreso.setString("Cargando facturas...");
         bloquearUI(true);
         seltodos.setSelected(true);
-        CargarFacturas();
+          CargarFacturas();
         DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
         List<String[]> facturas = new ArrayList<>();
         detenerScheduler();
@@ -1102,10 +1249,12 @@ public class Enviador extends javax.swing.JFrame {
     }
 
     public void envioAuto() {
+      
+        
         barraprogreso.setIndeterminate(true);
         bloquearUI(true);
         seltodos.setSelected(true);
-        CargarFacturas();
+           CargarFacturas();
 
         DefaultTableModel model = (DefaultTableModel) TablaFactura.getModel();
         List<String[]> facturas = new ArrayList<>();
@@ -1198,8 +1347,23 @@ public class Enviador extends javax.swing.JFrame {
         };
 
         worker.execute();
+        
+        
+        
+        
     }
 
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     private void enviarFacturasSeleccionadas() {
 
         new Thread(new Runnable() {
@@ -1230,7 +1394,7 @@ public class Enviador extends javax.swing.JFrame {
                 }
 
                 bloquearUI(false);
-                CargarFacturas();
+                 CargarFacturas();
             }
 
         }).start();
@@ -1282,7 +1446,7 @@ public class Enviador extends javax.swing.JFrame {
                 SwingUtilities.invokeLater(() -> {
                     bloquearUI(false);
                     nroFac.setText("Proceso terminado");
-                    CargarFacturas();
+                       CargarFacturas();
                 });
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -1334,6 +1498,7 @@ public class Enviador extends javax.swing.JFrame {
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("Envio", "API");
         conn.setDoOutput(true);
 
         // JSON Body

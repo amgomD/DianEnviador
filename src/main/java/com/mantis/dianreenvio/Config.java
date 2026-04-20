@@ -4,11 +4,12 @@
  */
 package com.mantis.dianreenvio;
 
-import BaseDatos.ServerMantisSQL;
+import java.awt.Component;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -17,10 +18,15 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import javax.swing.Icon;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JTable;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
  *
@@ -28,12 +34,18 @@ import java.util.logging.Logger;
  */
 public class Config extends javax.swing.JFrame {
 
+    DefaultTableModel modelo = null;
+
     /**
      * Creates new form Config
      */
     public Config() {
         initComponents();
         CargarConf();
+
+        modelo = (DefaultTableModel) tablaConexiones.getModel();
+        renderizartablas(tablaConexiones);
+        cargarJSON(tablaConexiones);
     }
 
     /**
@@ -45,6 +57,7 @@ public class Config extends javax.swing.JFrame {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
+        jProgressBar1 = new javax.swing.JProgressBar();
         jPanel1 = new javax.swing.JPanel();
         jLabel1 = new javax.swing.JLabel();
         CadenaServidor = new javax.swing.JTextField();
@@ -53,6 +66,24 @@ public class Config extends javax.swing.JFrame {
         jLabel3 = new javax.swing.JLabel();
         jLabel2 = new javax.swing.JLabel();
         benvioauto = new javax.swing.JCheckBox();
+        verCorreo = new javax.swing.JCheckBox();
+        multiplhilo = new javax.swing.JCheckBox();
+        jLabel4 = new javax.swing.JLabel();
+        jLabel5 = new javax.swing.JLabel();
+        jLabel6 = new javax.swing.JLabel();
+        jComboBox1 = new javax.swing.JComboBox<>();
+        jLabel7 = new javax.swing.JLabel();
+        txtjsoncadena = new javax.swing.JLabel();
+        jsonURL = new javax.swing.JTextField();
+        txtjsonurl = new javax.swing.JLabel();
+        jsonCadena = new javax.swing.JTextField();
+        GuardarConexion1 = new javax.swing.JButton();
+        jScrollPane1 = new javax.swing.JScrollPane();
+        tablaConexiones = new javax.swing.JTable();
+        ActivarLista = new javax.swing.JCheckBox();
+        jLabel8 = new javax.swing.JLabel();
+        Ficc = new javax.swing.JCheckBox();
+        jLabel9 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
 
@@ -68,7 +99,7 @@ public class Config extends javax.swing.JFrame {
         GuardarConexion.setBackground(new java.awt.Color(0, 153, 255));
         GuardarConexion.setFont(new java.awt.Font("Dialog", 0, 11)); // NOI18N
         GuardarConexion.setForeground(new java.awt.Color(255, 255, 255));
-        GuardarConexion.setText("Guardar conexión");
+        GuardarConexion.setText("Guardar Propiedades");
         GuardarConexion.setBorderPainted(false);
         GuardarConexion.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -89,49 +120,209 @@ public class Config extends javax.swing.JFrame {
         jLabel3.setText("URL Web services");
 
         jLabel2.setFont(new java.awt.Font("Dialog", 0, 11)); // NOI18N
-        jLabel2.setText("Automatico");
+        jLabel2.setText("vercorreo");
 
         benvioauto.setText("Envio automatico");
+
+        verCorreo.setText("Desactivar verficiacion correo");
+
+        multiplhilo.setText("Multiple hilos");
+
+        jLabel4.setFont(new java.awt.Font("Dialog", 0, 11)); // NOI18N
+        jLabel4.setText("Automatico");
+
+        jLabel5.setFont(new java.awt.Font("Dialog", 0, 11)); // NOI18N
+        jLabel5.setText("multiple");
+
+        jLabel6.setFont(new java.awt.Font("Dialog", 0, 11)); // NOI18N
+        jLabel6.setText("Automatico");
+
+        jComboBox1.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "FICC", "GX6" }));
+
+        jLabel7.setFont(new java.awt.Font("Dialog", 0, 18)); // NOI18N
+        jLabel7.setText("Lista masiva");
+
+        txtjsoncadena.setText("Cadena BD");
+
+        txtjsonurl.setText("URL");
+
+        GuardarConexion1.setBackground(new java.awt.Color(0, 153, 255));
+        GuardarConexion1.setFont(new java.awt.Font("Dialog", 0, 11)); // NOI18N
+        GuardarConexion1.setForeground(new java.awt.Color(255, 255, 255));
+        GuardarConexion1.setText("Guardar conexiones");
+        GuardarConexion1.setBorderPainted(false);
+        GuardarConexion1.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                GuardarConexion1ActionPerformed(evt);
+            }
+        });
+
+        tablaConexiones.setModel(new javax.swing.table.DefaultTableModel(
+            new Object [][] {
+
+            },
+            new String [] {
+                "eliminar", "URL", "CadenaBD", "Tipo"
+            }
+        ) {
+            boolean[] canEdit = new boolean [] {
+                false, true, true, true
+            };
+
+            public boolean isCellEditable(int rowIndex, int columnIndex) {
+                return canEdit [columnIndex];
+            }
+        });
+        tablaConexiones.setShowGrid(true);
+        tablaConexiones.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                tablaConexionesMouseClicked(evt);
+            }
+        });
+        jScrollPane1.setViewportView(tablaConexiones);
+        if (tablaConexiones.getColumnModel().getColumnCount() > 0) {
+            tablaConexiones.getColumnModel().getColumn(0).setMinWidth(20);
+            tablaConexiones.getColumnModel().getColumn(0).setPreferredWidth(20);
+            tablaConexiones.getColumnModel().getColumn(0).setMaxWidth(20);
+            tablaConexiones.getColumnModel().getColumn(3).setMinWidth(50);
+            tablaConexiones.getColumnModel().getColumn(3).setPreferredWidth(50);
+            tablaConexiones.getColumnModel().getColumn(3).setMaxWidth(50);
+        }
+
+        ActivarLista.setText("Activar lista masiva");
+
+        jLabel8.setFont(new java.awt.Font("Dialog", 0, 11)); // NOI18N
+        jLabel8.setText("Empresas");
+
+        Ficc.setText("Ficc");
+
+        jLabel9.setFont(new java.awt.Font("Dialog", 0, 11)); // NOI18N
+        jLabel9.setText("Tipo");
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
-                .addContainerGap()
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(CadenaServidor)
-                    .addComponent(UrlwebServices)
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
-                        .addGap(0, 756, Short.MAX_VALUE)
-                        .addComponent(GuardarConexion, javax.swing.GroupLayout.PREFERRED_SIZE, 161, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addContainerGap()
                         .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jLabel1)
-                            .addComponent(jLabel3)
-                            .addComponent(jLabel2)
-                            .addComponent(benvioauto))
-                        .addGap(0, 0, Short.MAX_VALUE)))
-                .addContainerGap())
+                            .addGroup(jPanel1Layout.createSequentialGroup()
+                                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addGroup(jPanel1Layout.createSequentialGroup()
+                                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addComponent(benvioauto)
+                                            .addComponent(jLabel4))
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addComponent(verCorreo)
+                                            .addComponent(jLabel2))
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addComponent(jLabel5)
+                                            .addComponent(multiplhilo))
+                                        .addGap(18, 18, 18)
+                                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addComponent(jLabel8)
+                                            .addComponent(ActivarLista))
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addComponent(Ficc)
+                                            .addComponent(jLabel9)))
+                                    .addComponent(jLabel1)
+                                    .addComponent(jLabel3))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addComponent(GuardarConexion, javax.swing.GroupLayout.PREFERRED_SIZE, 161, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addComponent(UrlwebServices)
+                            .addComponent(CadenaServidor)))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGap(12, 12, 12)
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(jPanel1Layout.createSequentialGroup()
+                                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addComponent(jLabel7)
+                                    .addGroup(jPanel1Layout.createSequentialGroup()
+                                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addGroup(jPanel1Layout.createSequentialGroup()
+                                                .addComponent(jsonURL, javax.swing.GroupLayout.PREFERRED_SIZE, 272, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                                .addGap(146, 146, 146))
+                                            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                                .addGroup(jPanel1Layout.createSequentialGroup()
+                                                    .addComponent(txtjsonurl)
+                                                    .addGap(267, 267, 267)
+                                                    .addComponent(txtjsoncadena))
+                                                .addGroup(jPanel1Layout.createSequentialGroup()
+                                                    .addGap(292, 292, 292)
+                                                    .addComponent(jsonCadena, javax.swing.GroupLayout.PREFERRED_SIZE, 272, javax.swing.GroupLayout.PREFERRED_SIZE))))
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                                            .addComponent(jLabel6)
+                                            .addComponent(jComboBox1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addComponent(GuardarConexion1, javax.swing.GroupLayout.PREFERRED_SIZE, 161, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addComponent(jScrollPane1))))
+                .addGap(9, 9, 9))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
-                .addGap(9, 9, 9)
+                .addContainerGap()
                 .addComponent(jLabel3)
-                .addGap(8, 8, 8)
+                .addGap(4, 4, 4)
                 .addComponent(UrlwebServices, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addComponent(jLabel1)
-                .addGap(5, 5, 5)
-                .addComponent(CadenaServidor, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addComponent(jLabel2)
+                .addComponent(jLabel1)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(benvioauto)
-                .addGap(7, 7, 7)
-                .addComponent(GuardarConexion)
-                .addGap(11, 11, 11))
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addComponent(CadenaServidor, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(jPanel1Layout.createSequentialGroup()
+                                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                                    .addComponent(jLabel2)
+                                    .addComponent(jLabel4)
+                                    .addComponent(jLabel5))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                                    .addComponent(benvioauto)
+                                    .addComponent(verCorreo)
+                                    .addComponent(multiplhilo)
+                                    .addComponent(GuardarConexion, javax.swing.GroupLayout.PREFERRED_SIZE, 24, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
+                                .addComponent(jLabel9)
+                                .addGap(30, 30, 30))))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addComponent(jLabel8)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(ActivarLista)
+                            .addComponent(Ficc))))
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGap(72, 72, 72)
+                        .addComponent(GuardarConexion1))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGap(18, 18, 18)
+                        .addComponent(jLabel7)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                            .addGroup(jPanel1Layout.createSequentialGroup()
+                                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                                    .addComponent(txtjsoncadena)
+                                    .addComponent(txtjsonurl))
+                                .addGap(1, 1, 1)
+                                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                                    .addComponent(jsonURL, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                    .addComponent(jsonCadena, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                            .addGroup(jPanel1Layout.createSequentialGroup()
+                                .addComponent(jLabel6)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(jComboBox1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)))))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 490, Short.MAX_VALUE)
+                .addGap(16, 16, 16))
         );
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -142,7 +333,9 @@ public class Config extends javax.swing.JFrame {
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jPanel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+            .addGroup(layout.createSequentialGroup()
+                .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(0, 0, Short.MAX_VALUE))
         );
 
         pack();
@@ -157,16 +350,85 @@ public class Config extends javax.swing.JFrame {
         String rutaserver = "C:\\DianReenvio\\ConexionServer.txt";
         String rutaURL = "C:\\DianReenvio\\UrlServidor.txt";
         String rutalocal = "C:\\DianReenvio\\envioauto.txt";
-
+        String rutamultiple = "C:\\DianReenvio\\multiplehilo.txt";
+        String rutavercorreo = "C:\\DianReenvio\\vercorreo.txt";
+        String rutaActivarLista = "C:\\DianReenvio\\ActivarLista.txt";
+             String rutaActFicc = "C:\\DianReenvio\\ActivarFicc.txt";
+     
         String envioauto = "N";
+        String multiple = "N";
+        String vercorreo = "N";
+        String strActivarLista = "N";
+        String ActFicc = "N";
 
         if (benvioauto.isSelected()) {
             envioauto = "S";
         }
 
+        if (multiplhilo.isSelected()) {
+            multiple = "S";
+        }
+
+        if (verCorreo.isSelected()) {
+            vercorreo = "S";
+        }
+
+        if (ActivarLista.isSelected()) {
+            strActivarLista = "S";
+        }
+
+          if (Ficc.isSelected()) {
+            ActFicc = "S";
+        }
+          
+        
         String Cadenaserverstr = CadenaServidor.getText().toString().trim();
         String URLstr = UrlwebServices.getText().toString().trim();
         Connection connection;
+
+             try {
+
+            Files.write(Paths.get(rutaActFicc), ActFicc.getBytes(Charset.forName("UTF-8")));
+            jLabel9.setIcon(new javax.swing.ImageIcon(getClass().getResource("/Ok15.png")));
+
+        } catch (IOException ex) {
+            System.out.println("Error: " + ex.getMessage());
+            jLabel9.setIcon(new javax.swing.ImageIcon(getClass().getResource("/error15.png")));
+        }
+            
+            try {
+
+            Files.write(Paths.get(rutaActivarLista), strActivarLista.getBytes(Charset.forName("UTF-8")));
+            jLabel8.setIcon(new javax.swing.ImageIcon(getClass().getResource("/Ok15.png")));
+
+        } catch (IOException ex) {
+            System.out.println("Error: " + ex.getMessage());
+            jLabel8.setIcon(new javax.swing.ImageIcon(getClass().getResource("/error15.png")));
+        }
+            
+            
+            
+        
+        try {
+
+            Files.write(Paths.get(rutavercorreo), vercorreo.getBytes(Charset.forName("UTF-8")));
+            jLabel2.setIcon(new javax.swing.ImageIcon(getClass().getResource("/Ok15.png")));
+
+        } catch (IOException ex) {
+            System.out.println("Error: " + ex.getMessage());
+            jLabel2.setIcon(new javax.swing.ImageIcon(getClass().getResource("/error15.png")));
+        }
+
+        try {
+
+            Files.write(Paths.get(rutamultiple), multiple.getBytes(Charset.forName("UTF-8")));
+            jLabel5.setIcon(new javax.swing.ImageIcon(getClass().getResource("/Ok15.png")));
+
+        } catch (IOException ex) {
+            System.out.println("Error: " + ex.getMessage());
+            jLabel5.setIcon(new javax.swing.ImageIcon(getClass().getResource("/error15.png")));
+        }
+
         try {
 
             Files.write(Paths.get(rutalocal), envioauto.getBytes(Charset.forName("UTF-8")));
@@ -176,6 +438,7 @@ public class Config extends javax.swing.JFrame {
             System.out.println("Error: " + ex.getMessage());
             jLabel3.setIcon(new javax.swing.ImageIcon(getClass().getResource("/error15.png")));
         }
+
         try {
             if (netIsAvailable(URLstr) == true) {
                 Files.write(Paths.get(rutaURL), URLstr.getBytes(Charset.forName("UTF-8")));
@@ -208,6 +471,196 @@ public class Config extends javax.swing.JFrame {
         }
     }//GEN-LAST:event_GuardarConexionActionPerformed
 
+    private void GuardarConexion1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_GuardarConexion1ActionPerformed
+        String url = jsonURL.getText().trim();
+        String cadena = jsonCadena.getText().trim();
+        String Tipo = jComboBox1.getSelectedItem().toString();
+        Connection connection;
+        int banurl = 0;
+        int bancadena = 0;
+
+        if (netIsAvailable(url) == true) {
+            //Files.write(Paths.get(rutaURL), URLstr.getBytes(Charset.forName("UTF-8")));
+            banurl = 1;
+            txtjsonurl.setIcon(new javax.swing.ImageIcon(getClass().getResource("/Ok15.png")));
+        } else {
+            txtjsonurl.setIcon(new javax.swing.ImageIcon(getClass().getResource("/error15.png")));
+        }
+
+        try {
+            connection = DriverManager.getConnection(cadena);
+            if (VerificarConexion(connection)) {
+                bancadena = 1;
+                txtjsoncadena.setIcon(new javax.swing.ImageIcon(getClass().getResource("/Ok15.png")));
+            } else {
+                txtjsoncadena.setIcon(new javax.swing.ImageIcon(getClass().getResource("/error15.png")));
+            }
+
+        } catch (Exception e) {
+            System.out.println(e.toString());
+        }
+
+        if (bancadena == 0 || banurl == 0) {
+            JOptionPane.showMessageDialog(null, "Error de conexiones");
+            return;
+        }
+
+        if (url.isEmpty() || cadena.isEmpty()) {
+            JOptionPane.showMessageDialog(null, "Campos vacíos");
+            return;
+        }
+
+        guardarJSON(url, cadena, Tipo);
+        cargarJSON(tablaConexiones);
+        jsonURL.setText("");
+        jsonCadena.setText("");
+
+        // (opcional) poner foco otra vez
+        jsonURL.requestFocus();
+    }//GEN-LAST:event_GuardarConexion1ActionPerformed
+
+    private void tablaConexionesMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_tablaConexionesMouseClicked
+        int fila = tablaConexiones.rowAtPoint(evt.getPoint());
+        int columna = tablaConexiones.columnAtPoint(evt.getPoint());
+        String rutaArchivo = "C:/DianReenvio/datos.json";
+        // Verifica que sea la columna del ícono (por ejemplo, columna 4)
+        if (columna == 0 && fila >= 0) {
+            // Opcional: eliminar la fila
+
+            Object codigo = tablaConexiones.getValueAt(fila, 1);
+            try {
+                String contenido = new String(Files.readAllBytes(Paths.get(rutaArchivo)));
+                JSONArray jsonArray = new JSONArray(contenido);
+
+                // eliminar la fila
+                jsonArray.remove(fila);
+
+                // guardar nuevamente
+                FileWriter file = new FileWriter(rutaArchivo);
+                file.write(jsonArray.toString(4));
+                file.flush();
+                file.close();
+
+                // recargar tabla
+                ((DefaultTableModel) tablaConexiones.getModel()).removeRow(fila);
+
+                // JOptionPane.showMessageDialog(null, "Registro eliminado");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        }
+    }//GEN-LAST:event_tablaConexionesMouseClicked
+    public void limpiarGridFormaPago() {
+        int filas = modelo.getRowCount();
+        for (int a = 0; filas > a; a++) {
+            modelo.removeRow(0);
+        }
+    }
+
+    public void cargarJSON(JTable tabla) {
+        limpiarGridFormaPago();
+        String rutaArchivo = "C:/DianReenvio/datos.json";
+
+        /*DefaultTableModel modelo = new DefaultTableModel();
+        modelo.addColumn("URL");
+        modelo.addColumn("Cadena");
+        modelo.addColumn("Tipo");
+        modelo.addColumn("eliminar"); // 👈 nueva columna
+         */
+        try {
+            File archivo = new File(rutaArchivo);
+
+            /* if (!archivo.exists()) {
+                tabla.setModel(modelo);
+                return;
+            }*/
+            String contenido = new String(Files.readAllBytes(Paths.get(rutaArchivo)));
+
+            /*if (contenido.isEmpty()) {
+                tabla.setModel(modelo);
+                return;
+            }*/
+            JSONArray jsonArray = new JSONArray(contenido);
+            Icon eliminar = new javax.swing.ImageIcon(getClass().getResource("/Eliminar25.png"));
+            for (int i = 0; i < jsonArray.length(); i++) {
+                JSONObject obj = jsonArray.getJSONObject(i);
+
+                String url = obj.getString("URL");
+                String cadena = obj.getString("Cadena");
+                String Tipo = obj.getString("Tipo");
+
+                modelo.addRow(new Object[]{eliminar, url, cadena, Tipo});
+            }
+
+            //  tabla.setModel(modelo);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void renderizartablas(JTable tabla) {
+        tablaConexiones.getColumn("eliminar").setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                    boolean hasFocus, int row, int column) {
+                if (value instanceof Icon) {
+                    JLabel label = new JLabel();
+                    label.setIcon((Icon) value);
+                    label.setHorizontalAlignment(JLabel.CENTER);
+                    return label;
+                }
+                return super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            }
+        });
+    }
+
+    public void guardarJSON(String url, String cadena, String Tipo) {
+
+        String rutaCarpeta = "C:/DianReenvio";
+        String rutaArchivo = rutaCarpeta + "/datos.json";
+
+        try {
+            // Crear carpeta si no existe
+            File carpeta = new File(rutaCarpeta);
+            if (!carpeta.exists()) {
+                carpeta.mkdirs();
+            }
+
+            JSONArray jsonArray;
+
+            File archivo = new File(rutaArchivo);
+
+            // Si el archivo existe, leerlo
+            if (archivo.exists()) {
+                String contenido = new String(Files.readAllBytes(Paths.get(rutaArchivo)));
+                jsonArray = contenido.isEmpty() ? new JSONArray() : new JSONArray(contenido);
+            } else {
+                jsonArray = new JSONArray();
+            }
+
+            // Crear nuevo objeto
+            JSONObject nuevo = new JSONObject();
+            nuevo.put("URL", url);
+            nuevo.put("Cadena", cadena);
+            nuevo.put("Tipo", Tipo);
+
+            // Agregar al array
+            jsonArray.put(nuevo);
+
+            // Guardar
+            FileWriter file = new FileWriter(rutaArchivo);
+            file.write(jsonArray.toString(4)); // bonito
+            file.flush();
+            file.close();
+
+            System.out.println("Guardado correctamente");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     /**
      * @param args the command line arguments
      */
@@ -222,16 +675,24 @@ public class Config extends javax.swing.JFrame {
                 if ("Nimbus".equals(info.getName())) {
                     javax.swing.UIManager.setLookAndFeel(info.getClassName());
                     break;
+
                 }
             }
         } catch (ClassNotFoundException ex) {
-            java.util.logging.Logger.getLogger(Config.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(Config.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
+
         } catch (InstantiationException ex) {
-            java.util.logging.Logger.getLogger(Config.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(Config.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
+
         } catch (IllegalAccessException ex) {
-            java.util.logging.Logger.getLogger(Config.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(Config.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
+
         } catch (javax.swing.UnsupportedLookAndFeelException ex) {
-            java.util.logging.Logger.getLogger(Config.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(Config.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
         }
         //</editor-fold>
 
@@ -246,10 +707,14 @@ public class Config extends javax.swing.JFrame {
     private void CargarConf() {
 
         String Ruta = "C:\\DianReenvio\\";
- String rutalocal = "C:\\DianReenvio\\envioauto.txt";
+        String rutalocal = "C:\\DianReenvio\\envioauto.txt";
         String rutaserver = "C:\\DianReenvio\\ConexionServer.txt";
         String rutaURL = "C:\\DianReenvio\\UrlServidor.txt";
-
+        String rutamultiple = "C:\\DianReenvio\\multiplehilo.txt";
+        String rutavercorreo = "C:\\DianReenvio\\vercorreo.txt";
+     String rutaActivarLista = "C:\\DianReenvio\\ActivarLista.txt";
+     String rutaActFicc = "C:\\DianReenvio\\ActivarFicc.txt";
+     
         File carpeta = new File(Ruta);
         File crutaserver = new File(rutaserver);
         File cRutaURL = new File(rutaURL);
@@ -286,16 +751,48 @@ public class Config extends javax.swing.JFrame {
                     UrlwebServices.setText(texto);
                     texto = br.readLine();
                 }
-                
-                     br = new BufferedReader(new FileReader(rutalocal));
-                texto = br.readLine();
-             
-                    
-                    if(texto.equalsIgnoreCase("S")){
-                        benvioauto.setSelected(true);
-                    }
-                    
 
+                br = new BufferedReader(new FileReader(rutalocal));
+                texto = br.readLine();
+
+                if (texto.equalsIgnoreCase("S")) {
+                    benvioauto.setSelected(true);
+                }
+
+                br = new BufferedReader(new FileReader(rutamultiple));
+                texto = br.readLine();
+
+                if (texto.equalsIgnoreCase("S")) {
+                    multiplhilo.setSelected(true);
+                }
+
+                br = new BufferedReader(new FileReader(rutavercorreo));
+                texto = br.readLine();
+
+                if (texto.equalsIgnoreCase("S")) {
+                    verCorreo.setSelected(true);
+                }
+
+                
+                 br = new BufferedReader(new FileReader(rutaActivarLista));
+                texto = br.readLine();
+
+                if (texto.equalsIgnoreCase("S")) {
+                    ActivarLista.setSelected(true);
+                }
+ 
+                   
+                 br = new BufferedReader(new FileReader(rutaActFicc));
+                texto = br.readLine();
+
+                if (texto.equalsIgnoreCase("S")) {
+                    Ficc.setSelected(true);
+                }
+                
+                
+                
+                
+                
             } // Captura de excepción por fichero no encontrado
             catch (FileNotFoundException ex) {
 
@@ -337,13 +834,32 @@ public class Config extends javax.swing.JFrame {
         }
     }
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JCheckBox ActivarLista;
     private javax.swing.JTextField CadenaServidor;
+    private javax.swing.JCheckBox Ficc;
     private javax.swing.JButton GuardarConexion;
+    private javax.swing.JButton GuardarConexion1;
     private javax.swing.JTextField UrlwebServices;
     private javax.swing.JCheckBox benvioauto;
+    private javax.swing.JComboBox<String> jComboBox1;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
+    private javax.swing.JLabel jLabel5;
+    private javax.swing.JLabel jLabel6;
+    private javax.swing.JLabel jLabel7;
+    private javax.swing.JLabel jLabel8;
+    private javax.swing.JLabel jLabel9;
     private javax.swing.JPanel jPanel1;
+    private javax.swing.JProgressBar jProgressBar1;
+    private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JTextField jsonCadena;
+    private javax.swing.JTextField jsonURL;
+    private javax.swing.JCheckBox multiplhilo;
+    private javax.swing.JTable tablaConexiones;
+    private javax.swing.JLabel txtjsoncadena;
+    private javax.swing.JLabel txtjsonurl;
+    private javax.swing.JCheckBox verCorreo;
     // End of variables declaration//GEN-END:variables
 }
